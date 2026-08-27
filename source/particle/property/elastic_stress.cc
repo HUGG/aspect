@@ -21,7 +21,9 @@
 #include <aspect/particle/property/elastic_stress.h>
 #include <aspect/material_model/visco_plastic.h>
 #include <aspect/material_model/viscoelastic.h>
+#include <aspect/material_model/compositing.h>
 #include <aspect/initial_composition/interface.h>
+#include <aspect/material_model/reactive_fluid_transport.h>
 #include <aspect/particle/world.h>
 
 namespace aspect
@@ -33,10 +35,10 @@ namespace aspect
       template <int dim>
       ElasticStress<dim>::ElasticStress ()
         :
-        material_inputs(1,0),
-        material_outputs(1,0),
-        material_inputs_cell(1,0),
-        material_outputs_cell(1,0)
+        material_inputs(0,0),
+        material_outputs(0,0),
+        material_inputs_cell(0,0),
+        material_outputs_cell(0,0)
       {}
 
 
@@ -47,8 +49,12 @@ namespace aspect
       {
         AssertThrow((Plugins::plugin_type_matches<const MaterialModel::ViscoPlastic<dim>>(this->get_material_model())
                      ||
-                     Plugins::plugin_type_matches<const MaterialModel::Viscoelastic<dim>>(this->get_material_model())),
-                    ExcMessage("This particle property only makes sense in combination with the viscoelastic or visco_plastic material model."));
+                     Plugins::plugin_type_matches<const MaterialModel::Viscoelastic<dim>>(this->get_material_model())
+                     ||
+                     Plugins::plugin_type_matches<const MaterialModel::ReactiveFluidTransport<dim>>(this->get_material_model()))
+                    ||
+                    Plugins::plugin_type_matches<const MaterialModel::Compositing<dim>>(this->get_material_model()),
+                    ExcMessage("This particle property only makes sense in combination with the viscoelastic, visco_plastic, or compositing material model."));
 
         AssertThrow(this->get_parameters().enable_elasticity == true,
                     ExcMessage ("This particle property should only be used if 'Enable elasticity' is set to true"));
@@ -57,9 +63,9 @@ namespace aspect
         AssertThrow(!manager.plugin_name_exists("composition"),
                     ExcMessage("The 'elastic stress' plugin cannot be used in combination with the 'composition' plugin."));
 
-        material_inputs = MaterialModel::MaterialModelInputs<dim>(1, this->n_compositional_fields());
+        material_inputs.resize (1, this->n_compositional_fields());
 
-        material_outputs = MaterialModel::MaterialModelOutputs<dim>(1, this->n_compositional_fields());
+        material_outputs.resize (1, this->n_compositional_fields(), true);
 
         material_inputs.requested_properties = MaterialModel::MaterialProperties::reaction_terms;
 
@@ -157,12 +163,17 @@ namespace aspect
                     }
 
                   // Resize the material model inputs to the number of particles in the current cell
-                  material_inputs_cell  = MaterialModel::MaterialModelInputs<dim>(n_particles_in_cell, this->n_compositional_fields());
+                  material_inputs_cell.resize (n_particles_in_cell, this->n_compositional_fields());
                   material_inputs_cell.current_cell = cell;
                   material_inputs_cell.requested_properties = MaterialModel::MaterialProperties::reaction_rates;
-                  material_outputs_cell = MaterialModel::MaterialModelOutputs<dim>(n_particles_in_cell, this->n_compositional_fields());
+                  material_outputs_cell.resize (n_particles_in_cell, this->n_compositional_fields(), true);
                   // The reaction rates are stored in additional outputs
-                  this->get_material_model().create_additional_named_outputs(material_outputs_cell);
+                  const MaterialModel::Interface<dim> &elastic_model =
+                    Plugins::plugin_type_matches<const MaterialModel::ReactiveFluidTransport<dim>>(this->get_material_model())
+                    ? Plugins::get_plugin_as_type<const MaterialModel::ReactiveFluidTransport<dim>>(this->get_material_model()).get_base_model()
+                    : this->get_material_model();
+
+                  elastic_model.create_additional_named_outputs(material_outputs_cell);
 
                   const std::shared_ptr<MaterialModel::ReactionRateOutputs<dim>> reaction_rate_outputs
                     = material_outputs_cell.template get_additional_output_object<MaterialModel::ReactionRateOutputs<dim>>();
@@ -238,9 +249,7 @@ namespace aspect
                       material_inputs_cell.strain_rate[i] = symmetrize (grad_u);
                     }
 
-                  // Evaluate the material model to get the reaction rates
-                  // for all the particles in the current cell.
-                  this->get_material_model().evaluate (material_inputs_cell,material_outputs_cell);
+                  elastic_model.evaluate (material_inputs_cell,material_outputs_cell);
 
                   // Update all particles in the current cell.
                   particle = particles_in_cell.begin();
@@ -337,7 +346,14 @@ namespace aspect
               grad_u[d] = inputs.gradients[p][d];
             material_inputs.strain_rate[0] = symmetrize (grad_u);
 
-            this->get_material_model().evaluate (material_inputs,material_outputs);
+            // Elasticity is handled by the base viscoplastic/viscoelastic model,
+            // which may be wrapped by the reactive fluid transport model.
+            const MaterialModel::Interface<dim> &elastic_model =
+              Plugins::plugin_type_matches<const MaterialModel::ReactiveFluidTransport<dim>>(this->get_material_model())
+              ? Plugins::get_plugin_as_type<const MaterialModel::ReactiveFluidTransport<dim>>(this->get_material_model()).get_base_model()
+              : this->get_material_model();
+
+            elastic_model.evaluate (material_inputs,material_outputs);
 
             // Apply the stress rotation to the ve_stress_* fields, not the ve_stress_*_old fields.
             for (unsigned int i = 0; i < SymmetricTensor<2,dim>::n_independent_components ; ++i)

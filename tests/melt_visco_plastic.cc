@@ -21,6 +21,7 @@
 #ifndef _aspect_material_model_melt_visco_plastic_h
 #define _aspect_material_model_melt_visco_plastic_h
 
+#include <algorithm>
 #include <aspect/material_model/interface.h>
 #include <aspect/simulator.h>
 #include <aspect/simulator_access.h>
@@ -579,7 +580,7 @@ namespace aspect
                 }
 
               // Limit the viscosity with specified minimum and maximum bounds
-              out.viscosities[i] = std::min(std::max(out.viscosities[i], min_viscosity), max_viscosity);
+              out.viscosities[i] = std::clamp(out.viscosities[i], min_viscosity, max_viscosity);
 
               // Compute the volumetric yield strength (Keller et al. eq (38))
               volumetric_yield_strength[i] = viscous_stress - tensile_strength;
@@ -605,7 +606,7 @@ namespace aspect
               const double compaction_pressure = (1.0 - porosity) * (in.pressure[i] - fluid_pressures[i]);
 
               const double phi_0 = 0.05;
-              porosity = std::max(std::min(porosity,0.995),1.e-8);
+              porosity = std::clamp(porosity, 1.e-8, 0.995);
               // compaction viscosities (Keller et al. eq (51)
               melt_out->compaction_viscosities[i] = intrinsic_viscosities[i] * phi_0 / porosity;
 
@@ -630,7 +631,7 @@ namespace aspect
                 }
 
               // Limit the viscosity with specified minimum and maximum bounds
-              melt_out->compaction_viscosities[i] = std::min(std::max(melt_out->compaction_viscosities[i], min_viscosity), max_viscosity);
+              melt_out->compaction_viscosities[i] = std::clamp(melt_out->compaction_viscosities[i], min_viscosity, max_viscosity);
             }
         }
 

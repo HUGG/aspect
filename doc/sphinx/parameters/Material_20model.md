@@ -129,7 +129,7 @@ The density is defined as $\rho = \exp(\text{Di}/\gamma \cdot z)  (1.0 - \alpha 
 
 &lsquo;reactive fluid transport&rsquo;: Material model that is designed to advect fluids and compute fluid release and absorption based on different models for fluid-rock interaction. At present, models where no fluid-rock interactions occur or the solid has zero solubility are available. The properties of the solid can be taken from another material model that is used as a base model.
 
-&lsquo;replace lithosphere viscosity&rsquo;: The &ldquo;replace lithosphere viscosity&rdquo; Material model sets viscosity to a prescribed constant above the lithosphere-asthenosphere boundary (specified by an ascii file or maximum lithosphere depth). Below the lithosphere-asthenosphereboundary the viscosity is taken from any of the other available material model. In other words, it is a &ldquo;compositing material model&rdquo;.
+&lsquo;replace lithosphere viscosity&rsquo;: The &ldquo;replace lithosphere viscosity&rdquo; Material model sets viscosity to a prescribed constant above the lithosphere-asthenosphere boundary (specified by an ascii file or maximum lithosphere depth). Below the lithosphere-asthenosphere boundary the viscosity is taken from any of the other available material model. In other words, it is a &ldquo;compositing material model&rdquo;.
 Parameters related to the replace lithosphere viscosity model are read from a subsection &ldquo;Material model/Replace lithosphere viscosity&rdquo;. The user must specify a &ldquo;Base model&rdquo; from which other material properties are derived.
 Note the required format of the input data file: The first lines may contain any number of comments if they begin with ‘#’, but one of these lines needs to contain the number of grid points in each dimension as for example ‘# POINTS: 3 3’. For a spherical model, the order of the data columns has to be&rsquo;phi&rsquo;, &rsquo;theta&rsquo;,&rsquo;depth (m)&rsquo;, where phi is the  azimuth angle and theta is the polar angle measured positive from the north pole.
 
@@ -177,11 +177,11 @@ Viscous stress may also be limited by a non-linear stress limiter that has a for
 
  The viscoelastic rheology behavior takes into account the elastic shear strength (e.g., shear modulus), while the tensile and volumetric strength (e.g., Young&rsquo;s and bulk modulus) are not considered. The model is incompressible and allows specifying an arbitrary number of compositional fields, where each field represents a different rock type or component of the viscoelastic stress tensor. The stress tensor in 2d and 3d, respectively, contains 3 or 6 components. The compositional fields representing these components must be named and listed in a very specific format, which is designed to minimize mislabeling stress tensor components as distinct &rsquo;compositional rock types&rsquo; (or vice versa). For 2d models, three plus three consecutive compositional fields must be labeled &rsquo;stress\_xx&rsquo;, &rsquo;stress\_yy&rsquo;, &rsquo;stress\_xy&rsquo;, &rsquo;stress\_xx\_old&rsquo;, &rsquo;stress\_yy\_old&rsquo;, and &rsquo;stress\_xy\_old&rsquo;. In 3d, six plus six compositional fields must be labeled &rsquo;stress\_xx&rsquo;, &rsquo;stress\_yy&rsquo;, &rsquo;stress\_zz&rsquo;, &rsquo;stress\_xy&rsquo;, &rsquo;stress\_xz&rsquo;, &rsquo;stress\_yz&rsquo;, &rsquo;stress\_xx\_old&rsquo;, &rsquo;stress\_yy\_old&rsquo;, &rsquo;stress\_zz\_old&rsquo;, &rsquo;stress\_xy\_old&rsquo;, &rsquo;stress\_xz\_old&rsquo;, &rsquo;stress\_yz\_old&rsquo;.
 
- Combining this viscoelasticity implementation with non-linear viscous flow and plasticity produces a constitutive relationship commonly referred to as partial elastoviscoplastic (e.g., pEVP) in the geodynamics community. While extensively discussed and applied within the geodynamics literature, notable references include: Moresi et al. (2003), J. Comp. Phys., v. 184, p. 476-497. Gerya and Yuen (2007), Phys. Earth. Planet. Inter., v. 163, p. 83-105. Gerya (2010), Introduction to Numerical Geodynamic Modeling. Kaus (2010), Tectonophysics, v. 484, p. 36-47. Choi et al. (2013), J. Geophys. Res., v. 118, p. 2429-2444. Keller et al. (2013), Geophys. J. Int., v. 195, p. 1406-1442.
+ Combining this viscoelasticity implementation with non-linear viscous flow and plasticity produces a constitutive relationship commonly referred to as partial elastoviscoplastic (e.g., pEVP) in the geodynamics community. While extensively discussed and applied within the geodynamics literature, notable references include: {cite}`moresi2003lagrangian,gerya2007robust,gerya:2010,kaus:2010,choi2013dynearthsol2d,keller:etal:2013`.
 
- The overview below directly follows Moresi et al. (2003) eqns. 23-38. However, an important distinction between this material model and the studies above is the option to use compositional fields, rather than particles, to track individual components of the viscoelastic stress tensor. Calculating viscoelastic stresses with particles is also implemented, and can be switched on by using particles with the particle property &rsquo;elastic stress&rsquo;.
+ The overview below directly follows {cite}`moresi2003lagrangian` eqns. 23-38. However, an important distinction between this material model and the studies above is the option to use compositional fields, rather than particles, to track individual components of the viscoelastic stress tensor. Calculating viscoelastic stresses with particles is also implemented, and can be switched on by using particles with the particle property &rsquo;elastic stress&rsquo;.
 
- Moresi et al. (2003) begins (eqn. 23) by writing the deviatoric rate of deformation ($\hat{D}$) as the sum of elastic ($\hat{D_{e}}$) and viscous ($\hat{D_{v}}$) components: $\hat{D} = \hat{D_{e}} + \hat{D_{v}}$.  These terms further decompose into $\hat{D_{v}} = \frac{\tau}{2\eta}$ and $\hat{D_{e}} = \frac{\overset{\nabla}{\tau}}{2\mu}$, where $\tau$ is the viscous deviatoric stress, $\eta$ is the shear viscosity, $\mu$ is the shear modulus and $\overset{\nabla}{\tau}$ is the Jaumann corotational stress rate. This later term (eqn. 24) contains the time derivative of the deviatoric stress ($\dot{\tau}$) and terms that account for material spin (e.g., rotation) due to advection: $\overset{\nabla}{\tau} = \dot{\tau} + {\tau}W -W\tau$. Above, $W$ is the material spin tensor (eqn. 25): $W_{ij} = \frac{1}{2} \left (\frac{\partial V_{i}}{\partial x_{j}} - \frac{\partial V_{j}}{\partial x_{i}} \right )$.
+ {cite}`moresi2003lagrangian` begins (eqn. 23) by writing the deviatoric rate of deformation ($\hat{D}$) as the sum of elastic ($\hat{D_{e}}$) and viscous ($\hat{D_{v}}$) components: $\hat{D} = \hat{D_{e}} + \hat{D_{v}}$.  These terms further decompose into $\hat{D_{v}} = \frac{\tau}{2\eta}$ and $\hat{D_{e}} = \frac{\overset{\nabla}{\tau}}{2\mu}$, where $\tau$ is the viscous deviatoric stress, $\eta$ is the shear viscosity, $\mu$ is the shear modulus and $\overset{\nabla}{\tau}$ is the Jaumann corotational stress rate. This later term (eqn. 24) contains the time derivative of the deviatoric stress ($\dot{\tau}$) and terms that account for material spin (e.g., rotation) due to advection: $\overset{\nabla}{\tau} = \dot{\tau} + {\tau}W -W\tau$. Above, $W$ is the material spin tensor (eqn. 25): $W_{ij} = \frac{1}{2} \left (\frac{\partial V_{i}}{\partial x_{j}} - \frac{\partial V_{j}}{\partial x_{i}} \right )$.
 
  If plasticity is included, the deviatoric rate of deformation may be written as: $\hat{D} = \hat{D_{e}} + \hat{D_{v}} + \hat{D_{p}}$, where $\hat{D_{p}}$ is the plastic component. $\hat{D_{p}}$ decomposes to $\frac{\tau_{y}}{2\eta_{y}}$, where $\tau_{y}$ is the yield stress and $\eta_{y}$ is the viscosity rescaled to the yield surface. The Jaumann stress-rate can also be approximated using terms from the previous time step ($t$) and current time step ($t + \Delta t^{e}$): $\smash[t]{\overset{\nabla}{\tau}}^{t + \Delta t^{e}} \approx \frac{\tau^{t + \Delta t^{e} - \tau^{t}}}{\Delta t^{e}} - W^{t}\tau^{t} + \tau^{t}W^{t}$. In this material model, the size of the time step above ($\Delta t^{e}$) can be specified as the numerical time step size or an independent fixed time step. If the latter case is selected, the user has an option to apply a stress averaging scheme to account for the differences between the numerical and fixed elastic time step (eqn. 32). If one selects to use a fixed elastic time step throughout the model run, this can still be achieved by using CFL and maximum time step values that restrict the numerical time step to a specific time.
 
@@ -190,7 +190,7 @@ Viscous stress may also be limited by a non-linear stress limiter that has a for
 
  The effective viscosity (eqn. 28) is a function of the viscosity ($\eta$), elastic time step size ($\Delta t^{e}$) and shear relaxation time ($ \alpha = \frac{\eta}{\mu} $): $\eta_{eff} = \eta \frac{\Delta t^{e}}{\Delta t^{e} + \alpha}$ The magnitude of the shear modulus thus controls how much the effective viscosity is reduced relative to the initial viscosity.
 
- Elastic effects are introduced into the governing Stokes equations through an elastic force term (eqn. 30 updated to the term in eqn. 5 in Farrington et al. 2014) using stresses from the previous time step rotated and advected into the current time step: $F^{e,t} = -\frac{\eta_{eff}}{\mu \Delta t^{e}} \tau^{0adv}$. This force term is added onto the right-hand side force vector in the system of equations.
+ Elastic effects are introduced into the governing Stokes equations through an elastic force term (eqn. 30 updated to the term in eqn. 5 in {cite}`farrington2014role`) using stresses from the previous time step rotated and advected into the current time step: $F^{e,t} = -\frac{\eta_{eff}}{\mu \Delta t^{e}} \tau^{0adv}$. This force term is added onto the right-hand side force vector in the system of equations.
 
  When plastic yielding occurs, the effective viscosity in equation 29 and 30 is the plastic viscosity (equation 36). If the current stress is below the plastic yield stress, the effective viscosity is still as defined in equation 28. During non-linear iterations, we define the current stress prior to yielding (e.g., value compared to yield stress) as $\tau^{t + \Delta t^{e}} = \eta_{eff} \left ( 2\hat{D}^{t + \triangle t^{e}} + \frac{\tau^{t}}{\mu \Delta t^{e}} \right ) $
 
@@ -202,20 +202,20 @@ Viscous stress may also be limited by a non-linear stress limiter that has a for
 
 &lsquo;viscoelastic&rsquo;: An implementation of a simple linear viscoelastic rheology that only includes the deviatoric components of elasticity. Specifically, the viscoelastic rheology only takes into account the elastic shear strength (e.g., shear modulus), while the tensile and volumetric strength (e.g., Young&rsquo;s and bulk modulus) are not considered. The model is incompressible and allows specifying an arbitrary number of compositional fields, where each field represents a different rock type or component of the viscoelastic stress tensor. The stress tensor in 2d and 3d, respectively, contains 3 or 6 components. The compositional fields representing these components must be named and listed in a very specific format, which is designed to minimize mislabeling stress tensor components as distinct &rsquo;compositional rock types&rsquo; (or vice versa). For 2d models, the first six compositional fields of type stress must be labeled &rsquo;ve\_stress\_xx&rsquo;, &rsquo;ve\_stress\_yy&rsquo; and &rsquo;ve\_stress\_xy&rsquo;, &rsquo;ve\_stress\_xx\_old&rsquo;, &rsquo;ve\_stress\_yy\_old&rsquo; and &rsquo;ve\_stress\_xy\_old&rsquo;, In 3d, the first twelve compositional fields of type stress must be labeled &rsquo;ve\_stress\_xx&rsquo;, &rsquo;ve\_stress\_yy&rsquo;, &rsquo;ve\_stress\_zz&rsquo;, &rsquo;ve\_stress\_xy&rsquo;, &rsquo;ve\_stress\_xz&rsquo;, &rsquo;ve\_stress\_yz&rsquo;, &rsquo;ve\_stress\_xx\_old&rsquo;, &rsquo;ve\_stress\_yy\_old&rsquo;, &rsquo;ve\_stress\_zz\_old&rsquo;,  &rsquo;ve\_stress\_xy\_old&rsquo;, &rsquo;ve\_stress\_xz\_old&rsquo;, &rsquo;ve\_stress\_yz\_old&rsquo;.
 
- Expanding the model to include non-linear viscous flow (e.g., diffusion/dislocation creep) and plasticity would produce a constitutive relationship commonly referred to as partial elastoviscoplastic (e.g., pEVP) in the geodynamics community. While extensively discussed and applied within the geodynamics literature, notable references include: Moresi et al. (2003), J. Comp. Phys., v. 184, p. 476-497. Gerya and Yuen (2007), Phys. Earth. Planet. Inter., v. 163, p. 83-105. Gerya (2010), Introduction to Numerical Geodynamic Modeling. Kaus (2010), Tectonophysics, v. 484, p. 36-47. Choi et al. (2013), J. Geophys. Res., v. 118, p. 2429-2444. Keller et al. (2013), Geophys. J. Int., v. 195, p. 1406-1442.
+ Expanding the model to include non-linear viscous flow (e.g., diffusion/dislocation creep) and plasticity would produce a constitutive relationship commonly referred to as partial elastoviscoplastic (e.g., pEVP) in the geodynamics community. While extensively discussed and applied within the geodynamics literature, notable references include: {cite}`moresi2003lagrangian,gerya2007robust,gerya:2010,kaus:2010,choi2013dynearthsol2d,keller:etal:2013`.
 
- The overview below directly follows Moresi et al. (2003) eqns. 23-32. However, an important distinction between this material model and the studies above is the use of compositional fields, rather than particles, to track individual components of the viscoelastic stress tensor. The material model will be updated when an option to track and calculate viscoelastic stresses with particles is implemented.
+ The overview below directly follows {cite}`moresi2003lagrangian` eqns. 23-32. However, an important distinction between this material model and the studies above is the use of compositional fields, rather than particles, to track individual components of the viscoelastic stress tensor. The material model will be updated when an option to track and calculate viscoelastic stresses with particles is implemented.
 
- Moresi et al. (2003) begins (eqn. 23) by writing the deviatoric rate of deformation ($\hat{D}$) as the sum of elastic ($\hat{D_{e}}$) and viscous ($\hat{D_{v}}$) components: $\hat{D} = \hat{D_{e}} + \hat{D_{v}}$.  These terms further decompose into $\hat{D_{v}} = \frac{\tau}{2\eta}$ and $\hat{D_{e}} = \frac{\overset{\nabla}{\tau}}{2\mu}$, where $\tau$ is the viscous deviatoric stress, $\eta$ is the shear viscosity, $\mu$ is the shear modulus and $\overset{\nabla}{\tau}$ is the Jaumann corotational stress rate. This later term (eqn. 24) contains the time derivative of the deviatoric stress ($\dot{\tau}$) and terms that account for material spin (e.g., rotation) due to advection: $\overset{\nabla}{\tau} = \dot{\tau} + {\tau}W -W\tau$. Above, $W$ is the material spin tensor (eqn. 25): $W_{ij} = \frac{1}{2} \left (\frac{\partial V_{i}}{\partial x_{j}} - \frac{\partial V_{j}}{\partial x_{i}} \right )$.
+ {cite}`moresi2003lagrangian` begins (eqn. 23) by writing the deviatoric rate of deformation ($\hat{D}$) as the sum of elastic ($\hat{D_{e}}$) and viscous ($\hat{D_{v}}$) components: $\hat{D} = \hat{D_{e}} + \hat{D_{v}}$.  These terms further decompose into $\hat{D_{v}} = \frac{\tau}{2\eta}$ and $\hat{D_{e}} = \frac{\overset{\nabla}{\tau}}{2\mu}$, where $\tau$ is the viscous deviatoric stress, $\eta$ is the shear viscosity, $\mu$ is the shear modulus and $\overset{\nabla}{\tau}$ is the Jaumann corotational stress rate. This later term (eqn. 24) contains the time derivative of the deviatoric stress ($\dot{\tau}$) and terms that account for material spin (e.g., rotation) due to advection: $\overset{\nabla}{\tau} = \dot{\tau} + {\tau}W -W\tau$. Above, $W$ is the material spin tensor (eqn. 25): $W_{ij} = \frac{1}{2} \left (\frac{\partial V_{i}}{\partial x_{j}} - \frac{\partial V_{j}}{\partial x_{i}} \right )$.
 
- The Jaumann stress-rate can also be approximated using terms from the previous time step ($t$) and current time step ($t + \Delta t^{e}$): $\smash[t]{\overset{\nabla}{\tau}}^{t + \Delta t^{e}} \approx \frac{\tau^{t + \Delta t^{e} - \tau^{t}}}{\Delta t^{e}} - W^{t}\tau^{t} + \tau^{t}W^{t}$. In this material model, the size of the time step above ($\Delta t^{e}$) can be specified as the numerical time step size or an independent fixed time step. If the latter case is selected, a linear interpolation will be appliedto account for the differences between the numerical and fixed elastic time step (eqn. 32). If one selects to use a fixed elastic time step throughout the model run, this can still be achieved by using CFL and maximum time step values that restrict the numerical time step to a specific time.
+ The Jaumann stress-rate can also be approximated using terms from the previous time step ($t$) and current time step ($t + \Delta t^{e}$): $\smash[t]{\overset{\nabla}{\tau}}^{t + \Delta t^{e}} \approx \frac{\tau^{t + \Delta t^{e} - \tau^{t}}}{\Delta t^{e}} - W^{t}\tau^{t} + \tau^{t}W^{t}$. In this material model, the size of the time step above ($\Delta t^{e}$) can be specified as the numerical time step size or an independent fixed time step. If the latter case is selected, a linear interpolation will be applied to account for the differences between the numerical and fixed elastic time step (eqn. 32). If one selects to use a fixed elastic time step throughout the model run, this can still be achieved by using CFL and maximum time step values that restrict the numerical time step to a specific time.
 
  The formulation above allows rewriting the total deviatoric stress (eqn. 29) as
  $\tau^{t + \Delta t^{e}} = \eta_\text{eff} \left ( 2\hat{D}^{t + \triangle t^{e}} + \frac{\tau^{t}}{\mu \Delta t^{e}} + \frac{W^{t}\tau^{t} - \tau^{t}W^{t}}{\mu}  \right )$.
 
  The effective viscosity (eqn. 28) is a function of the viscosity ($\eta$), elastic time step size ($\Delta t^{e}$) and shear relaxation time ($ \alpha = \frac{\eta}{\mu} $): $\eta_\text{eff} = \eta \frac{\Delta t^{e}}{\Delta t^{e} + \alpha}$ The magnitude of the shear modulus thus controls how much the effective viscosity is reduced relative to the initial viscosity.
 
- Elastic effects are introduced into the governing Stokes equations through an elastic force term (eqn. 30 updated to the term in eqn. 5 in Farrington et al. 2014) using stresses from the previous time step rotated and advected into the current time step: $F^{e,t} = -\frac{\eta_\text{eff}}{\mu \Delta t^{e}} \tau^{0adv}$. This force term is added onto the right-hand side force vector in the system of equations.
+ Elastic effects are introduced into the governing Stokes equations through an elastic force term (eqn. 30 updated to the term in eqn. 5 in {cite}`farrington2014role`) using stresses from the previous time step rotated and advected into the current time step: $F^{e,t} = -\frac{\eta_\text{eff}}{\mu \Delta t^{e}} \tau^{0adv}$. This force term is added onto the right-hand side force vector in the system of equations.
 
  The value of each compositional field representing distinct rock types at a point is interpreted to be a volume fraction of that rock type. If the sum of the compositional field volume fractions is less than one, then the remainder of the volume is assumed to be &rsquo;background material&rsquo;.
 
@@ -528,7 +528,7 @@ Viscous stress may also be limited by a non-linear stress limiter that has a for
 
 **Pattern:** [Double 0...MAX_DOUBLE (inclusive)]
 
-**Documentation:** The value of the constant viscosity. Units: \si{\kilogram\per\meter\per\second}.
+**Documentation:** The value of the constant viscosity. Units: \si{\pascal\second}.
 ::::
 
 (parameters:Material_20model/Depth_20dependent_20model)=
@@ -983,7 +983,7 @@ A typical example would be to set this runtime parameter to &lsquo;pi=3.14159265
 
 **Pattern:** [Double 0...MAX_DOUBLE (inclusive)]
 
-**Documentation:** The value of the cohesion, $C$. The extremely large defaultcohesion value (1e20 Pa) prevents the viscous stress from exceeding the yield stress. Units: \si{\pascal}.
+**Documentation:** The value of the cohesion, $C$. The extremely large default cohesion value (1e20 Pa) prevents the viscous stress from exceeding the yield stress. Units: \si{\pascal}.
 ::::
 
 ::::{dropdown} __Parameter:__ {ref}`Data directory<parameters:Material_20model/Entropy_20model/Data_20directory>`
@@ -1013,6 +1013,15 @@ A typical example would be to set this runtime parameter to &lsquo;pi=3.14159265
 **Documentation:** The file name of the material data. The first material data file is intended for the background composition.
 ::::
 
+::::{dropdown} __Parameter:__ {ref}`Maximum exact specific heat capacity<parameters:Material_20model/Entropy_20model/Maximum_20exact_20specific_20heat_20capacity>`
+:name: parameters:Material_20model/Entropy_20model/Maximum_20exact_20specific_20heat_20capacity
+**Default value:** 1e50
+
+**Pattern:** [Double 0...MAX_DOUBLE (inclusive)]
+
+**Documentation:** The maximum specific heat capacity that is exactly equal to the value given by the thermodynamic lookup table.
+::::
+
 ::::{dropdown} __Parameter:__ {ref}`Maximum iteration for multicomponent equilibration<parameters:Material_20model/Entropy_20model/Maximum_20iteration_20for_20multicomponent_20equilibration>`
 :name: parameters:Material_20model/Entropy_20model/Maximum_20iteration_20for_20multicomponent_20equilibration
 **Default value:** 50
@@ -1029,6 +1038,15 @@ A typical example would be to set this runtime parameter to &lsquo;pi=3.14159265
 **Pattern:** [Double 0...MAX_DOUBLE (inclusive)]
 
 **Documentation:** The relative cutoff value for lateral viscosity variations caused by temperature deviations. The viscosity may vary laterally by this factor squared.
+::::
+
+::::{dropdown} __Parameter:__ {ref}`Maximum limited specific heat capacity<parameters:Material_20model/Entropy_20model/Maximum_20limited_20specific_20heat_20capacity>`
+:name: parameters:Material_20model/Entropy_20model/Maximum_20limited_20specific_20heat_20capacity
+**Default value:** 1e50
+
+**Pattern:** [Double 0...MAX_DOUBLE (inclusive)]
+
+**Documentation:** The maximum allowed value for the specific heat capacity.
 ::::
 
 ::::{dropdown} __Parameter:__ {ref}`Maximum thermal conductivity<parameters:Material_20model/Entropy_20model/Maximum_20thermal_20conductivity>`
@@ -2518,7 +2536,7 @@ Also note that the melting time scale has to be larger than or equal to the reac
 
 **Pattern:** [Double -MAX_DOUBLE...MAX_DOUBLE (inclusive)]
 
-**Documentation:** Reference pressure used to compute the material propertiesof the different endmember components.Units: \si{\pascal}.
+**Documentation:** Reference pressure used to compute the material properties of the different endmember components.Units: \si{\pascal}.
 ::::
 
 ::::{dropdown} __Parameter:__ {ref}`Reference shear viscosity<parameters:Material_20model/Melt_20boukare/Reference_20shear_20viscosity>`
@@ -2545,7 +2563,7 @@ Also note that the melting time scale has to be larger than or equal to the reac
 
 **Pattern:** [Double -MAX_DOUBLE...MAX_DOUBLE (inclusive)]
 
-**Documentation:** Reference temperature used to compute the material propertiesof the different endmember components.Units: \si{\kelvin}.
+**Documentation:** Reference temperature used to compute the material properties of the different endmember components.Units: \si{\kelvin}.
 ::::
 
 ::::{dropdown} __Parameter:__ {ref}`Reference thermal expansivities<parameters:Material_20model/Melt_20boukare/Reference_20thermal_20expansivities>`
@@ -2646,7 +2664,7 @@ Also note that the melting time scale has to be larger than or equal to the reac
 
 **Pattern:** [Double 0...MAX_DOUBLE (inclusive)]
 
-**Documentation:** $\alpha_F$: exponential dependency of viscosity on the depletion field $F$ (called peridotite). Dimensionless factor. With a value of 0.0 (the default) the viscosity does not depend on the depletion. The effective viscosity increasedue to depletion is defined as $std::exp( \alpha_F * F)$. Rationale: melting dehydrates the source rock by removing most of the volatiles,and makes it stronger. Hirth and Kohlstedt (1996) report typical values around a factor 100 to 1000 viscosity contrast between wet and dry rocks, although some experimental studies report a smaller (factor 10) contrast (e.g. Fei et al., 2013).
+**Documentation:** $\alpha_F$: exponential dependency of viscosity on the depletion field $F$ (called peridotite). Dimensionless factor. With a value of 0.0 (the default) the viscosity does not depend on the depletion. The effective viscosity increase due to depletion is defined as $std::exp( \alpha_F * F)$. Rationale: melting dehydrates the source rock by removing most of the volatiles,and makes it stronger. Hirth and Kohlstedt (1996) report typical values around a factor 100 to 1000 viscosity contrast between wet and dry rocks, although some experimental studies report a smaller (factor 10) contrast (e.g. Fei et al., 2013).
 ::::
 
 ::::{dropdown} __Parameter:__ {ref}`Exponential melt weakening factor<parameters:Material_20model/Melt_20global/Exponential_20melt_20weakening_20factor>`
@@ -4170,7 +4188,7 @@ Note that melt does not freeze unless the &rsquo;Freezing rate&rsquo; parameter 
 
 **Pattern:** [Selection Steinberger|ascii reference profile|averaging|compositing|composition reaction|depth dependent|diffusion dislocation|drucker prager|entropy model|grain size|latent heat|latent heat melt|melt boukare|melt global|melt simple|modified tait|multicomponent|multicomponent compressible|nondimensional|perplex lookup|prescribed viscosity|reactive fluid transport|replace lithosphere viscosity|simple|simple compressible|simpler|visco plastic|viscoelastic ]
 
-**Documentation:** The name of a material model that will be modified by a replacingthe viscosity in the lithosphere by a constant value. Valid values for this parameter are the names of models that are also valid for the &ldquo;Material models/Model name&rdquo; parameter. See the documentation for more information.
+**Documentation:** The name of a material model that will be modified by a replacing the viscosity in the lithosphere by a constant value. Valid values for this parameter are the names of models that are also valid for the &ldquo;Material models/Model name&rdquo; parameter. See the documentation for more information.
 ::::
 
 ::::{dropdown} __Parameter:__ {ref}`Data directory<parameters:Material_20model/Replace_20lithosphere_20viscosity/Data_20directory>`
@@ -5044,6 +5062,33 @@ Note that melt does not freeze unless the &rsquo;Freezing rate&rsquo; parameter 
 **Documentation:** Whether to include Peierls creep in the rheological formulation.
 ::::
 
+::::{dropdown} __Parameter:__ {ref}`Interface weakening compositions<parameters:Material_20model/Visco_20Plastic/Interface_20weakening_20compositions>`
+:name: parameters:Material_20model/Visco_20Plastic/Interface_20weakening_20compositions
+**Default value:**
+
+**Pattern:** [List of <[Anything]> of length 0...4294967295 (inclusive)]
+
+**Documentation:** List of exactly two compositional field names. If both fields exceed the threshold at the same point, the viscosity is scaled. Only used by the &rsquo;interface weakening&rsquo; viscosity prefactor scheme. Units: none.
+::::
+
+::::{dropdown} __Parameter:__ {ref}`Interface weakening factors<parameters:Material_20model/Visco_20Plastic/Interface_20weakening_20factors>`
+:name: parameters:Material_20model/Visco_20Plastic/Interface_20weakening_20factors
+**Default value:** 1.0
+
+**Pattern:** [Anything]
+
+**Documentation:** Map from compositional field name to the degree of weakening of the viscous component at the interface between two compositions. This is only applied in the Viscosity prefactor scheme &rsquo;Interface weakening&rsquo;. Units: none.
+::::
+
+::::{dropdown} __Parameter:__ {ref}`Interface weakening threshold<parameters:Material_20model/Visco_20Plastic/Interface_20weakening_20threshold>`
+:name: parameters:Material_20model/Visco_20Plastic/Interface_20weakening_20threshold
+**Default value:** 1e-2
+
+**Pattern:** [Double 0...MAX_DOUBLE (inclusive)]
+
+**Documentation:** Threshold to trigger weakening of the viscous component at the interface between two compositions. This is only applied in the Viscosity prefactor scheme &rsquo;Interface weakening&rsquo;. Units: none.
+::::
+
 ::::{dropdown} __Parameter:__ {ref}`Lower temperature for maximum strain weakening<parameters:Material_20model/Visco_20Plastic/Lower_20temperature_20for_20maximum_20strain_20weakening>`
 :name: parameters:Material_20model/Visco_20Plastic/Lower_20temperature_20for_20maximum_20strain_20weakening
 **Default value:** 923.
@@ -5332,6 +5377,15 @@ Note that melt does not freeze unless the &rsquo;Freezing rate&rsquo; parameter 
 **Documentation:** A prefactor for the pressure term in the viscosity approximation, for a total of N+1 values, where N is the number of all compositional fields or only those corresponding to chemical compositions. If only one value is given, then all use the same value. Units: None
 ::::
 
+::::{dropdown} __Parameter:__ {ref}`Reaction progress mapping<parameters:Material_20model/Visco_20Plastic/Reaction_20progress_20mapping>`
+:name: parameters:Material_20model/Visco_20Plastic/Reaction_20progress_20mapping
+**Default value:**
+
+**Pattern:** [List of <[Integer range 0...2147483647 (inclusive)]> of length 0...4294967295 (inclusive)]
+
+**Documentation:** A list of indices that maps each phase transition to a reaction-progress compositional field. For example, an entry of 0 indicates that the corresponding phase transition uses the 0th reaction-progress composition. All following phase transitions will be affected by the former transition&rsquo;s reaction kinetics. A negative value means the phase transition is assumed to be equilibrium.
+::::
+
 ::::{dropdown} __Parameter:__ {ref}`Reference pressures for Frank Kamenetskii<parameters:Material_20model/Visco_20Plastic/Reference_20pressures_20for_20Frank_20Kamenetskii>`
 :name: parameters:Material_20model/Visco_20Plastic/Reference_20pressures_20for_20Frank_20Kamenetskii
 **Default value:** 1.7976931348623157e+308
@@ -5439,7 +5493,7 @@ Note that melt does not freeze unless the &rsquo;Freezing rate&rsquo; parameter 
 
 **Pattern:** [Selection none|finite strain tensor|total strain|plastic weakening with plastic strain only|plastic weakening with total strain only|plastic weakening with plastic strain and viscous weakening with viscous strain|viscous weakening with viscous strain only|default ]
 
-**Documentation:** Whether to apply strain weakening to viscosity, cohesion and internal angleof friction based on accumulated finite strain, and if yes, which method to use. The following methods are available:
+**Documentation:** Whether to apply strain weakening to viscosity, cohesion and internal angle of friction based on accumulated finite strain, and if yes, which method to use. The following methods are available:
 
 \item &ldquo;none&rdquo;: No strain weakening is applied.
 
@@ -5447,7 +5501,7 @@ Note that melt does not freeze unless the &rsquo;Freezing rate&rsquo; parameter 
 
 \item &ldquo;total strain&rdquo;: The finite strain is approximated as the product of the second invariant of the strain rate in each time step and the time step size, and this quantity is integrated and tracked over time. It is used to weaken both the plastic yield stress (specifically, the cohesion and friction angle) and the pre-yield viscosity.
 
-\item &ldquo;plastic weakening with plastic strain only&rdquo;: The finite strain is approximated as the product of the second invariant of the strain ratein each time step and the time step size in regions where material is plastically yielding. This quantity is integrated and tracked over time, and used to weaken the cohesion and friction angle. The pre-yield viscosity is not weakened.
+\item &ldquo;plastic weakening with plastic strain only&rdquo;: The finite strain is approximated as the product of the second invariant of the strain rate in each time step and the time step size in regions where material is plastically yielding. This quantity is integrated and tracked over time, and used to weaken the cohesion and friction angle. The pre-yield viscosity is not weakened.
 
 \item &ldquo;plastic weakening with total strain only&rdquo;: The finite strain is approximated as the product of the second invariant of the strain rate in each time step and the time step size, and this quantity is integrated and tracked over time. It is used to weaken the plastic yield stress (specifically, the cohesion and internal friction angle). The pre-yield viscosity is not weakened.
 
@@ -5538,7 +5592,7 @@ If a compositional field named &rsquo;noninitial\_plastic\_strain&rsquo; is incl
 
 **Pattern:** [List of <[Double 0...MAX_DOUBLE (inclusive)]> of length 0...4294967295 (inclusive)]
 
-**Documentation:** List of upper temperatures for onset of strain weakeningfor background material and compositional fields, for a total of N+1 values, where N is the number of all compositional fields or only those corresponding to chemical compositions. If only one value is given, then all use the same value. Units: \si{\kelvin}.
+**Documentation:** List of upper temperatures for onset of strain weakening for background material and compositional fields, for a total of N+1 values, where N is the number of all compositional fields or only those corresponding to chemical compositions. If only one value is given, then all use the same value. Units: \si{\kelvin}.
 ::::
 
 ::::{dropdown} __Parameter:__ {ref}`Use adiabatic pressure in creep viscosity<parameters:Material_20model/Visco_20Plastic/Use_20adiabatic_20pressure_20in_20creep_20viscosity>`
@@ -5608,9 +5662,9 @@ If a compositional field named &rsquo;noninitial\_plastic\_strain&rsquo; is incl
 :name: parameters:Material_20model/Visco_20Plastic/Viscosity_20prefactor_20scheme
 **Default value:** none
 
-**Pattern:** [Selection none|HK04 olivine hydration ]
+**Pattern:** [Selection none|HK04 olivine hydration|interface weakening ]
 
-**Documentation:** Select what type of viscosity multiplicative prefactor scheme to apply. Allowed entries are &rsquo;none&rsquo;, and &rsquo;HK04 olivine hydration&rsquo;. HK04 olivine hydration calculates the viscosity change due to hydrogen incorporation into olivine following Hirth & Kohlstedt 2004 (10.1029/138GM06). none does not modify the viscosity. Units: none.
+**Documentation:** Select what type of viscosity multiplicative prefactor scheme to apply. Allowed entries are &rsquo;none&rsquo;, &rsquo;HK04 olivine hydration&rsquo;, and &rsquo;interface weakening&rsquo;. HK04 olivine hydration calculates the viscosity change due to hydrogen incorporation into olivine following Hirth & Kohlstedt 2004 (10.1029/138GM06). none does not modify the viscosity. Interface weakening reduces the viscous contribution by a constant amount to mimic the effect of a very thin, weak layer between two compositional fields. Units: none.
 ::::
 
 ::::{dropdown} __Parameter:__ {ref}`Viscosity ratios for Frank Kamenetskii<parameters:Material_20model/Visco_20Plastic/Viscosity_20ratios_20for_20Frank_20Kamenetskii>`

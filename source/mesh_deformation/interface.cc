@@ -219,6 +219,20 @@ namespace aspect
 
 
     template <int dim>
+    double
+    Interface<dim>::
+    boundary_composition (const types::boundary_id /*boundary_indicator*/,
+                          const Point<dim> &/*position*/,
+                          const unsigned int /*compositional_field*/) const
+    {
+      //If the boundary_composition function is not implemented for a mesh deformation plugin,
+      // return zero.
+      return 0.0;
+    }
+
+
+
+    template <int dim>
     MeshDeformationHandler<dim>::MeshDeformationHandler (Simulator<dim> &simulator)
       : sim(simulator),  // reference to the simulator that owns the MeshDeformationHandler
         mesh_deformation_fe (FE_Q<dim>(sim.parameters.stokes_velocity_degree),dim),
@@ -645,6 +659,26 @@ namespace aspect
 
 
     template <int dim>
+    double
+    MeshDeformationHandler<dim>::boundary_composition (const types::boundary_id boundary_indicator,
+                                                       const Point<dim> &position,
+                                                       const unsigned int compositional_field) const
+    {
+      double composition = 0.0;
+
+      // Loop over all mesh deformation objects that are assigned to this
+      // boundary indicator and sum their contributions
+      for (const auto &deformation_object : mesh_deformation_objects.at(boundary_indicator))
+        {
+          composition += deformation_object->boundary_composition(boundary_indicator,
+                                                                  position,
+                                                                  compositional_field);
+        }
+
+      return composition;
+    }
+
+    template <int dim>
     void MeshDeformationHandler<dim>::make_constraints()
     {
       AssertThrow(sim.parameters.mesh_deformation_enabled, ExcInternalError());
@@ -657,15 +691,10 @@ namespace aspect
       // information that was used for mesh_vertex constraints.
       mesh_velocity_constraints.merge(mesh_vertex_constraints);
 
-      // Add the vanilla periodic boundary constraints
-      using periodic_boundary_pairs = std::set<std::pair<std::pair<types::boundary_id, types::boundary_id>, unsigned int>>;
-      const periodic_boundary_pairs pbp = this->get_geometry_model().get_periodic_boundary_pairs();
-      for (const auto &p : pbp)
-        DoFTools::make_periodicity_constraints(mesh_deformation_dof_handler,
-                                               p.first.first,
-                                               p.first.second,
-                                               p.second,
-                                               mesh_velocity_constraints);
+      // Let the geometry model join periodic boundaries, including any
+      // rotation needed by curved geometries.
+      this->get_geometry_model().make_periodicity_constraints(mesh_deformation_dof_handler,
+                                                              mesh_velocity_constraints);
 
       // Zero out the displacement for the zero-velocity boundaries
       // if the boundary is not in the set of tangential mesh boundaries and not in the set of mesh deformation boundary indicators
@@ -785,21 +814,10 @@ namespace aspect
       // information that was used for mesh_vertex constraints.
       mesh_velocity_constraints.merge(mesh_vertex_constraints);
 
-      // Add the vanilla periodic boundary constraints
-      std::set<types::boundary_id> periodic_boundaries;
-      using periodic_boundary_pairs = std::set<std::pair<std::pair<types::boundary_id, types::boundary_id>, unsigned int>>;
-      const periodic_boundary_pairs pbp = this->get_geometry_model().get_periodic_boundary_pairs();
-      for (const auto &p : pbp)
-        {
-          periodic_boundaries.insert(p.first.first);
-          periodic_boundaries.insert(p.first.second);
-
-          DoFTools::make_periodicity_constraints(mesh_deformation_dof_handler,
-                                                 p.first.first,
-                                                 p.first.second,
-                                                 p.second,
-                                                 mesh_velocity_constraints);
-        }
+      // Let the geometry model join periodic boundaries, including any
+      // rotation needed by curved geometries.
+      this->get_geometry_model().make_periodicity_constraints(mesh_deformation_dof_handler,
+                                                              mesh_velocity_constraints);
 
       // Zero out the displacement for the fixed boundaries
       for (const types::boundary_id &boundary_id : zero_mesh_deformation_boundary_indicators)

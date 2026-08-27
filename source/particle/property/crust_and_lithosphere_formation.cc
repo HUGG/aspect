@@ -31,8 +31,8 @@ namespace aspect
       template <int dim>
       CrustLithosphereFormation<dim>::CrustLithosphereFormation ()
         :
-        material_inputs(1,0),
-        material_outputs(1,0)
+        material_inputs(0,0),
+        material_outputs(0,0)
       {}
 
 
@@ -41,8 +41,8 @@ namespace aspect
       void
       CrustLithosphereFormation<dim>::initialize ()
       {
-        material_inputs  = MaterialModel::MaterialModelInputs<dim>(1, this->n_compositional_fields());
-        material_outputs = MaterialModel::MaterialModelOutputs<dim>(1, this->n_compositional_fields());
+        material_inputs.resize (1, this->n_compositional_fields());
+        material_outputs.resize (1, this->n_compositional_fields(), true);
 
         AssertThrow(this->introspection().compositional_name_exists("basalt") &&
                     this->introspection().compositional_name_exists("harzburgite"),
@@ -73,8 +73,8 @@ namespace aspect
       CrustLithosphereFormation<dim>::update_particle_properties(const ParticleUpdateInputs<dim> &inputs,
                                                                  typename ParticleHandler<dim>::particle_iterator_range &particles) const
       {
-        material_inputs  = MaterialModel::MaterialModelInputs<dim>(inputs.solution.size(), this->n_compositional_fields());
-        material_outputs = MaterialModel::MaterialModelOutputs<dim>(inputs.solution.size(), this->n_compositional_fields());
+        material_inputs.resize (inputs.solution.size(), this->n_compositional_fields());
+        material_outputs.resize (inputs.solution.size(), this->n_compositional_fields(), true);
         material_inputs.requested_properties = MaterialModel::MaterialProperties::reaction_terms;
         material_inputs.current_cell = inputs.current_cell;
 

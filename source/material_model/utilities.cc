@@ -18,7 +18,7 @@
   <http://www.gnu.org/licenses/>.
 */
 
-
+#include <algorithm>
 #include <aspect/global.h>
 #include <aspect/simulator_access.h>
 #include <aspect/structured_data.h>
@@ -795,7 +795,10 @@ namespace aspect
                                   const std::string &data_directory,
                                   const std::string &material_file_name)
         {
-          material_lookup = std::make_unique<Utilities::StructuredDataLookup<2>>(7,1.0);
+          material_lookup = std::make_unique<Utilities::StructuredDataLookup<2>>(7,1.0,std::set<unsigned int> {3});
+
+          // Load the material data file.
+          // The specific heat should be read in as the logarithm of the specific heat
           material_lookup->load_file(data_directory+material_file_name,
                                      comm);
         }
@@ -806,7 +809,7 @@ namespace aspect
         EntropyReader::specific_heat(const double entropy,
                                      const double pressure) const
         {
-          const double specific_heat = material_lookup->get_data({entropy,pressure}, 3);
+          const double specific_heat = std::exp(material_lookup->get_data({entropy,pressure}, 3));
           return specific_heat;
         }
 
@@ -877,8 +880,12 @@ namespace aspect
 
       std::vector<double>
       compute_only_composition_fractions(const std::vector<double> &compositional_fields,
-                                         const std::vector<unsigned int> &indices_to_use)
+                                         const std::vector<unsigned int> &indices_to_use,
+                                         const double minimum_fraction)
       {
+        AssertThrow(minimum_fraction <= 1.0,
+                    ExcMessage("The minimum composition fraction must not be greater than one."));
+
         std::vector<double> composition_fractions(indices_to_use.size()+1);
 
         // Clip the compositional fields so they are between zero and one,
@@ -888,7 +895,11 @@ namespace aspect
 
         for (unsigned int i=0; i < x_comp.size(); ++i)
           {
-            x_comp[i] = std::min(std::max(compositional_fields[indices_to_use[i]], 0.0), 1.0);
+            x_comp[i] = std::clamp(compositional_fields[indices_to_use[i]], 0.0, 1.0);
+
+            if (x_comp[i] < minimum_fraction)
+              x_comp[i] = 0.0;
+
             sum_composition += x_comp[i];
           }
 
@@ -914,8 +925,12 @@ namespace aspect
 
       std::vector<double>
       compute_composition_fractions(const std::vector<double> &compositional_fields,
-                                    const ComponentMask &field_mask)
+                                    const ComponentMask &field_mask,
+                                    const double minimum_fraction)
       {
+        AssertThrow(minimum_fraction <= 1.0,
+                    ExcMessage("The minimum composition fraction must not be greater than one."));
+
         std::vector<double> composition_fractions(compositional_fields.size()+1);
 
         // Clip the compositional fields so they are between zero and one,
@@ -925,7 +940,11 @@ namespace aspect
         for (unsigned int i=0; i < x_comp.size(); ++i)
           if (field_mask[i] == true)
             {
-              x_comp[i] = std::min(std::max(x_comp[i], 0.0), 1.0);
+              x_comp[i] = std::clamp(x_comp[i], 0.0, 1.0);
+
+              if (x_comp[i] < minimum_fraction)
+                x_comp[i] = 0.0;
+
               sum_composition += x_comp[i];
             }
 
@@ -1100,6 +1119,52 @@ namespace aspect
 
 
 
+      void
+      reaction_progress_modify_values (const std::vector<double> &reaction_progress_values,
+                                       const std::vector<unsigned int> &reaction_progress_mapping,
+                                       const std::vector<unsigned int> &n_phase_transitions_per_composition,
+                                       std::vector<double> &parameter_values,
+                                       const unsigned int composition_index,
+                                       const PhaseUtilities::PhaseAveragingOperation operation)
+      {
+        unsigned int start_phase_index = 0;
+        for (unsigned int i=0; i<composition_index; ++i)
+          start_phase_index += n_phase_transitions_per_composition[i] + 1;
+
+        if (n_phase_transitions_per_composition[composition_index] > 0)
+          {
+            for (unsigned int i=0; i<n_phase_transitions_per_composition[composition_index]; ++i)
+              {
+                const unsigned int phase_index = start_phase_index + i;
+
+                double current_parameter = parameter_values[phase_index+1];
+                if (operation == PhaseUtilities::logarithmic)
+                  current_parameter = std::log(current_parameter);
+
+                // Modify the parameter according to reaction progress.
+                for (unsigned int previous_phase_index=start_phase_index; previous_phase_index<=phase_index; previous_phase_index++)
+                  {
+                    auto [reaction_progress_active, reaction_progress_value]  = get_reaction_progress_for_phase_transition(reaction_progress_values,
+                                                                                reaction_progress_mapping,
+                                                                                previous_phase_index);
+
+                    if (reaction_progress_active)
+                      {
+                        const double start_parameter = parameter_values[previous_phase_index];
+                        current_parameter = start_parameter + (current_parameter-start_parameter) * reaction_progress_value;
+                      }
+                  }
+
+                if (operation == PhaseUtilities::logarithmic)
+                  current_parameter = std::exp(current_parameter);
+
+                parameter_values[phase_index+1] = current_parameter;
+              }
+          }
+      }
+
+
+
       double phase_average_value (const std::vector<double> &phase_function_values,
                                   const std::vector<unsigned int> &n_phase_transitions_per_composition,
                                   const std::vector<double> &parameter_values,
@@ -1139,6 +1204,20 @@ namespace aspect
               averaged_parameter = std::exp(averaged_parameter);
           }
         return averaged_parameter;
+      }
+
+
+
+      std::pair<bool, double>
+      get_reaction_progress_for_phase_transition(const std::vector<double> &reaction_progress_values,
+                                                 const std::vector<unsigned> &reaction_progress_mapping,
+                                                 const unsigned int phase_transition_index)
+      {
+        const unsigned int n_reaction_progress = reaction_progress_mapping.size();
+        for (unsigned int reaction_progress_index=0; reaction_progress_index<n_reaction_progress; ++reaction_progress_index)
+          if (reaction_progress_mapping[reaction_progress_index] == phase_transition_index)
+            return {true, reaction_progress_values[reaction_progress_index]};
+        return {false, 0.0};
       }
 
 

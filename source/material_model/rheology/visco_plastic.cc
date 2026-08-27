@@ -18,6 +18,7 @@
   <http://www.gnu.org/licenses/>.
 */
 
+#include <algorithm>
 #include <aspect/material_model/rheology/visco_plastic.h>
 #include <aspect/material_model/utilities.h>
 #include <aspect/utilities.h>
@@ -380,7 +381,7 @@ namespace aspect
             }
 
 
-            // Step 1e: multiply the viscosity by a constant (default value is 1)
+            // Step 1f: multiply the viscosity by a constant (default value is 1)
             non_yielding_viscosity = constant_viscosity_prefactors.compute_viscosity(non_yielding_viscosity, j);
 
             // Step 2: calculate strain weakening factors for the cohesion, friction, and pre-yield viscosity

@@ -779,7 +779,9 @@ namespace aspect
      */
     int                            checkpoint_time_secs;
     int                            checkpoint_steps;
+    std::vector<double>            additional_checkpoint_times;
     unsigned int                   n_checkpoints_to_keep;
+    unsigned int                   n_additional_checkpoints_to_keep;
     unsigned int                   resume_checkpoint_id;
     double                         resume_time;
     /**
@@ -826,6 +828,8 @@ namespace aspect
     std::vector<aspect::CompositionalFieldDescription>  composition_descriptions;
     unsigned int                   n_chemical_compositions;
     std::vector<unsigned int>      chemical_composition_indices;
+    double                         minimum_composition_fraction;
+    bool                           use_pressure_gradient_for_darcy_field;
 
     /**
      * A vector that contains the advection field method for every compositional

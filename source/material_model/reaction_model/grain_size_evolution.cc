@@ -18,7 +18,7 @@
   <http://www.gnu.org/licenses/>.
 */
 
-
+#include <algorithm>
 #include <aspect/material_model/reaction_model/grain_size_evolution.h>
 #include <aspect/utilities.h>
 #include <aspect/gravity_model/interface.h>
@@ -108,7 +108,7 @@ namespace aspect
 
         // We have to ensure the power term exponent is between 0 and 1, otherwise the partitioning fraction
         // will be outside the set bounds for the work fraction.
-        const double power_term_exponent = std::max(std::min(power_term_numerator / power_term_denominator, 1.0), 0.0);
+        const double power_term_exponent = std::clamp(power_term_numerator / power_term_denominator, 0.0, 1.0);
 
         const double power_term = std::pow(power_term_base,
                                            power_term_exponent);
@@ -241,14 +241,14 @@ namespace aspect
               if (grain_size_evolution_formulation == Formulation::paleowattmeter)
                 {
                   // paleowattmeter: Austin and Evans (2007): Paleowattmeters: A scaling relation for dynamically recrystallized grain size. Geology 35, 343-346
-                  const double stress = 2.0 * second_strain_rate_invariant * std::min(std::max(min_eta,current_viscosity),max_eta);
+                  const double stress = 2.0 * second_strain_rate_invariant * std::clamp(current_viscosity, min_eta, max_eta);
                   grain_size_reduction_rate = 2.0 * stress * boundary_area_change_work_fraction[phase_indices[i]] * dislocation_strain_rate * grain_size * grain_size
                                               / (geometric_constant[phase_indices[i]] * grain_boundary_energy[phase_indices[i]]);
                 }
               else if (grain_size_evolution_formulation == Formulation::pinned_grain_damage)
                 {
                   // pinned_grain_damage: Mulyukova and Bercovici (2018) Collapse of passive margins by lithospheric damage and plunging grain size. Earth and Planetary Science Letters, 484, 341-352.
-                  const double stress = 2.0 * second_strain_rate_invariant * std::min(std::max(min_eta,current_viscosity),max_eta);
+                  const double stress = 2.0 * second_strain_rate_invariant * std::clamp(current_viscosity, min_eta, max_eta);
                   grain_size_reduction_rate = 2.0 * stress * partitioning_fraction * second_strain_rate_invariant * grain_size * grain_size
                                               * roughness_to_grain_size
                                               / (geometric_constant[phase_indices[i]] * grain_boundary_energy[phase_indices[i]] * phase_distribution);

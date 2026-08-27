@@ -18,7 +18,7 @@
   <http://www.gnu.org/licenses/>.
 */
 
-
+#include <algorithm>
 #include <aspect/material_model/grain_size.h>
 #include <aspect/adiabatic_conditions/interface.h>
 #include <aspect/gravity_model/interface.h>
@@ -399,7 +399,7 @@ namespace aspect
                 alpha += compositional_fields[i] * material_lookup[i]->thermal_expansivity(temperature,pressure);
             }
         }
-      alpha = std::max(std::min(alpha,max_thermal_expansivity),min_thermal_expansivity);
+      alpha = std::clamp(alpha, min_thermal_expansivity, max_thermal_expansivity);
       return alpha;
     }
 
@@ -426,7 +426,7 @@ namespace aspect
                 cp += compositional_fields[i] * material_lookup[i]->specific_heat(temperature,pressure);
             }
         }
-      cp = std::max(std::min(cp,max_specific_heat),min_specific_heat);
+      cp = std::clamp(cp, min_specific_heat, max_specific_heat);
       return cp;
     }
 
@@ -618,14 +618,14 @@ namespace aspect
                     }
                 }
 
-              out.viscosities[i] = std::min(std::max(min_eta,effective_viscosity),max_eta);
+              out.viscosities[i] = std::clamp(effective_viscosity, min_eta, max_eta);
 
               if (const std::shared_ptr<DislocationViscosityOutputs<dim>> disl_viscosities_out
                   = out.template get_additional_output_object<DislocationViscosityOutputs<dim>>())
                 if (in.requests_property(MaterialProperties::additional_outputs))
                   {
-                    disl_viscosities_out->dislocation_viscosities[i] = std::min(std::max(min_eta,disl_viscosity),1e300);
-                    disl_viscosities_out->diffusion_viscosities[i] = std::min(std::max(min_eta,diff_viscosity),1e300);
+                    disl_viscosities_out->dislocation_viscosities[i] = std::clamp(disl_viscosity, min_eta, 1e300);
+                    disl_viscosities_out->diffusion_viscosities[i] = std::clamp(diff_viscosity, min_eta, 1e300);
                   }
 
             }
@@ -736,8 +736,8 @@ namespace aspect
               out.specific_heat[i] = specific_heat(in.temperature[i], adiabatic_pressures[i], in.composition[i], in.position[i]);
             }
 
-          out.thermal_expansion_coefficients[i] = std::max(std::min(out.thermal_expansion_coefficients[i],max_thermal_expansivity),min_thermal_expansivity);
-          out.specific_heat[i] = std::max(std::min(out.specific_heat[i],max_specific_heat),min_specific_heat);
+          out.thermal_expansion_coefficients[i] = std::clamp(out.thermal_expansion_coefficients[i], min_thermal_expansivity, max_thermal_expansivity);
+          out.specific_heat[i] = std::clamp(out.specific_heat[i], min_specific_heat, max_specific_heat);
         }
     }
 

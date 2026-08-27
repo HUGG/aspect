@@ -18,7 +18,7 @@
   <http://www.gnu.org/licenses/>.
 */
 
-
+#include <algorithm>
 #include <aspect/material_model/melt_global.h>
 #include <aspect/adiabatic_conditions/interface.h>
 
@@ -244,12 +244,12 @@ namespace aspect
           if (this->include_adiabatic_heating ())
             {
               const double delta_temp = in.temperature[i]-this->get_adiabatic_conditions().temperature(in.position[i]);
-              visc_temperature_dependence = std::max(std::min(std::exp(-thermal_viscosity_exponent*delta_temp/this->get_adiabatic_conditions().temperature(in.position[i])),1e4),1e-4);
+              visc_temperature_dependence = std::clamp(std::exp(-thermal_viscosity_exponent*delta_temp/this->get_adiabatic_conditions().temperature(in.position[i])), 1e-4, 1e4);
             }
           else if (thermal_viscosity_exponent != 0.0)
             {
               const double delta_temp = in.temperature[i]-reference_T;
-              visc_temperature_dependence = std::max(std::min(std::exp(-thermal_viscosity_exponent*delta_temp/reference_T),1e4),1e-4);
+              visc_temperature_dependence = std::clamp(std::exp(-thermal_viscosity_exponent*delta_temp/reference_T), 1e-4, 1e4);
             }
           out.viscosities[i] *= visc_temperature_dependence;
         }
@@ -287,12 +287,12 @@ namespace aspect
               if (this->include_adiabatic_heating ())
                 {
                   const double delta_temp = in.temperature[i]-this->get_adiabatic_conditions().temperature(in.position[i]);
-                  visc_temperature_dependence = std::max(std::min(std::exp(-thermal_bulk_viscosity_exponent*delta_temp/this->get_adiabatic_conditions().temperature(in.position[i])),1e4),1e-4);
+                  visc_temperature_dependence = std::clamp(std::exp(-thermal_bulk_viscosity_exponent*delta_temp/this->get_adiabatic_conditions().temperature(in.position[i])), 1e-4, 1e4);
                 }
               else if (thermal_viscosity_exponent != 0.0)
                 {
                   const double delta_temp = in.temperature[i]-reference_T;
-                  visc_temperature_dependence = std::max(std::min(std::exp(-thermal_bulk_viscosity_exponent*delta_temp/reference_T),1e4),1e-4);
+                  visc_temperature_dependence = std::clamp(std::exp(-thermal_bulk_viscosity_exponent*delta_temp/reference_T), 1e-4, 1e4);
                 }
               melt_out->compaction_viscosities[i] *= visc_temperature_dependence;
             }
@@ -430,7 +430,7 @@ namespace aspect
                              "$\\alpha_F$: exponential dependency of viscosity on the depletion "
                              "field $F$ (called peridotite). "
                              "Dimensionless factor. With a value of 0.0 (the default) the "
-                             "viscosity does not depend on the depletion. The effective viscosity increase"
+                             "viscosity does not depend on the depletion. The effective viscosity increase "
                              "due to depletion is defined as $std::exp( \\alpha_F * F)$. "
                              "Rationale: melting dehydrates the source rock by removing most of the volatiles,"
                              "and makes it stronger. Hirth and Kohlstedt (1996) report typical values around a "

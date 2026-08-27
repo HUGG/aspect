@@ -28,6 +28,7 @@ project(testsuite CXX)
 set(ASPECT_BINARY "${ASPECT_BINARY}" CACHE STRING "" FORCE)
 set(Aspect_DIR "${Aspect_DIR}" CACHE STRING "" FORCE)
 set(ASPECT_COMPARE_TEST_RESULTS "${ASPECT_COMPARE_TEST_RESULTS}" CACHE BOOL "" FORCE)
+set(ASPECT_ENABLE_PERFORMANCE_TESTS "${ASPECT_ENABLE_PERFORMANCE_TESTS}" CACHE BOOL "" FORCE)
 set(ASPECT_RUN_ALL_TESTS OFF CACHE BOOL "")
 
 find_package(Aspect 3.1.0 QUIET REQUIRED HINTS ${Aspect_DIR})
@@ -99,10 +100,11 @@ endfunction()
 # Analyze the .prm to decide if this test should be run or not. We are
 # checking for the following strings in the .prm:
 # 1. "Enable if: ASPECT_WITH_WORLD_BUILDER"
-# 2. "Enable if: ASPECT_WITH_FASTSCAPE"
-# 3. "Enable if: ASPECT_WITH_PYTHON"
-# 3. "Enable if: ASPECT_WITH_LANDLAB"
-# 4. "Enable if: QUICK_TEST" - enable the test even if RUN_ALL_TESTS is false
+# 2. "Enable if: WORLD_BUILDER_VERSION_GTE_1_1_1"
+# 3. "Enable if: ASPECT_WITH_FASTSCAPE"
+# 4. "Enable if: ASPECT_WITH_PYTHON"
+# 5. "Enable if: ASPECT_WITH_LANDLAB"
+# 6. "Enable if: QUICK_TEST" - enable the test even if RUN_ALL_TESTS is false
 function(SHOULD_ENABLE_TEST _filename)
 
   file(STRINGS ${_filename} _input_lines
@@ -110,6 +112,15 @@ function(SHOULD_ENABLE_TEST _filename)
   if(NOT "${_input_lines}" STREQUAL "")
     if (${_input_lines} MATCHES "Enable if: ASPECT_WITH_WORLD_BUILDER"
         AND NOT ASPECT_WITH_WORLD_BUILDER)
+      set(_use_test OFF PARENT_SCOPE)
+    endif()
+  endif()
+
+  file(STRINGS ${_filename} _input_lines
+       REGEX "Enable if: WORLD_BUILDER_VERSION_GTE_1_1_1")
+  if(NOT "${_input_lines}" STREQUAL "")
+    if (${_input_lines} MATCHES "Enable if: WORLD_BUILDER_VERSION_GTE_1_1_1"
+        AND WORLD_BUILDER_VERSION VERSION_LESS 1.1.1)
       set(_use_test OFF PARENT_SCOPE)
     endif()
   endif()
@@ -468,5 +479,21 @@ function(discover_tests)
 endfunction()
 
 discover_tests()
+add_subdirectory(benchmarks)
+add_subdirectory(boundary_conditions)
+add_subdirectory(cookbooks)
 add_subdirectory(entropy)
+add_subdirectory(heating)
+add_subdirectory(initial_conditions)
+add_subdirectory(mesh_deformation)
+add_subdirectory(mesh_refinement)
+add_subdirectory(misc)
 add_subdirectory(particles)
+add_subdirectory(postprocess)
+add_subdirectory(prescribed_solution)
+add_subdirectory(reactions_and_two_phase_flow)
+add_subdirectory(rheology)
+
+if (ASPECT_ENABLE_PERFORMANCE_TESTS)
+  add_subdirectory(performance)
+endif()

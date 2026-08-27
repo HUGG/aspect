@@ -73,7 +73,7 @@ namespace aspect
         MaterialModel::MaterialModelOutputs<dim> out(in.n_evaluation_points(), this->n_compositional_fields());
         MeltHandler<dim>::create_material_model_outputs(out);
         this->get_material_model().evaluate(in, out);
-        const std::shared_ptr<MaterialModel::MeltOutputs<dim>> fluid_out
+        const std::shared_ptr<const MaterialModel::MeltOutputs<dim>> fluid_out
           = out.template get_additional_output_object<MaterialModel::MeltOutputs<dim>>();
         AssertThrow(std::isfinite(fluid_out->fluid_viscosities[0]),
                     ExcMessage("To compute the Darcy velocity the material model needs to provide the melt material model "
@@ -81,19 +81,17 @@ namespace aspect
 
         for (unsigned int q=0; q<in.n_evaluation_points(); ++q)
           {
-            const double porosity = std::max(in.composition[q][porosity_idx], 1e-10);
             const Tensor<1,dim> gravity = this->get_gravity_model().gravity_vector(in.position[q]);
-            const double solid_density = out.densities[q];
-            const double fluid_viscosity = fluid_out->fluid_viscosities[q];
-            const double fluid_density = fluid_out->fluid_densities[q];
-            const double permeability = fluid_out->permeabilities[q];
             const Tensor<1,dim> solid_velocity = in.velocity[q];
-            const Tensor<1,dim> darcy_velocity = (solid_velocity -
-                                                  permeability / fluid_viscosity / porosity * gravity *
-                                                  (solid_density - fluid_density)) * velocity_scaling_factor;
 
+            Tensor<1,dim> darcy_velocity =
+              aspect::Utilities::calculate_approximate_darcy_velocity(in,
+                                                                      out,
+                                                                      fluid_out, solid_velocity,
+                                                                      gravity, porosity_idx, q,
+                                                                      this->get_parameters().use_pressure_gradient_for_darcy_field);
             for (unsigned int k=0; k<dim; ++k)
-              computed_quantities[q](k) = darcy_velocity[k];
+              computed_quantities[q](k) = darcy_velocity[k] * velocity_scaling_factor;
           }
       }
     }

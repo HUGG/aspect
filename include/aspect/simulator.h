@@ -49,6 +49,7 @@ DEAL_II_ENABLE_EXTRA_DIAGNOSTICS
 #include <aspect/simulator_signals.h>
 #include <aspect/material_model/interface.h>
 #include <aspect/heating_model/interface.h>
+#include <aspect/prescribed_dilation/interface.h>
 #include <aspect/geometry_model/initial_topography_model/interface.h>
 #include <aspect/geometry_model/interface.h>
 #include <aspect/gravity_model/interface.h>
@@ -97,6 +98,9 @@ namespace aspect
   {
     template <int dim>
     class Direct;
+
+    template <int dim>
+    class MatrixBased;
   }
 
   template <int dim, int velocity_degree>
@@ -913,7 +917,7 @@ namespace aspect
        * This function is implemented in
        * <code>source/simulator/checkpoint_restart.cc</code>.
        */
-      void create_snapshot();
+      void create_snapshot(const bool is_additional_checkpoint = false);
 
       /**
        * Restore the state of this program from a set of files in the output
@@ -1836,10 +1840,24 @@ namespace aspect
 
       /**
        * Checkpointing happens in rotating folders /restart/01/, /restart/02/,
-       * etc.. This variable holds the last index used and as such should
+       * etc.. and potentially additional, non-rotating folders.
+       * This variable holds the last index used and as such should
        * contain the last valid checkpoint written.
        */
       unsigned int last_checkpoint_id;
+
+      /**
+       * The id of the last checkpoint created based on wall time or time step
+       * number period.
+       */
+      unsigned int last_regular_checkpoint_id;
+
+      /**
+       * Additional checkpointing happens in folders numbered starting from
+       * n_checkpoints_to_keep+1, e.g. by default /restart/04/.
+       * This variable holds the last index used for the additional snapshots.
+       */
+      unsigned int last_additional_checkpoint_id;
 
       /**
        * In output_statistics(), where we output the statistics object above,
@@ -1949,6 +1967,7 @@ namespace aspect
 
       MeshRefinement::Manager<dim>                              mesh_refinement_manager;
       HeatingModel::Manager<dim>                                heating_model_manager;
+      PrescribedDilation::Manager<dim>                          prescribed_dilation_manager;
 
       /**
        * Pointer to the Mapping object used by the finite elements when
@@ -1967,7 +1986,7 @@ namespace aspect
       Postprocess::Manager<dim>                                 postprocess_manager;
 
       /**
-       * The managers holding different sets of particles
+       * The managers holding different sets of particles.
        */
       std::vector<Particle::Manager<dim>>                       particle_managers;
 
@@ -2120,6 +2139,11 @@ namespace aspect
       std::unique_ptr<StokesMatrixFreeHandler<dim>> stokes_matrix_free;
 
       /**
+       * Unique pointer for the matrix-based Stokes solver
+       */
+      std::unique_ptr<StokesSolver::MatrixBased<dim>> stokes_matrix_based;
+
+      /**
        * Unique pointer for the direct Stokes solver
        */
       std::unique_ptr<StokesSolver::Direct<dim>> stokes_direct;
@@ -2130,6 +2154,7 @@ namespace aspect
       friend class MeshDeformation::MeshDeformationHandler<dim>;
       friend class VolumeOfFluidHandler<dim>;
       friend class StokesMatrixFreeHandler<dim>;
+      friend class StokesSolver::MatrixBased<dim>;
       template <int dimension, int velocity_degree> friend class StokesMatrixFreeHandlerLocalSmoothingImplementation;
       template <int dimension, int velocity_degree> friend class StokesMatrixFreeHandlerGlobalCoarseningImplementation;
       friend struct Parameters<dim>;

@@ -35,7 +35,7 @@ namespace aspect
       ViscoPlasticStrainInvariant<dim>::ViscoPlasticStrainInvariant ()
         :
         n_components(0),
-        material_inputs(1,0)
+        material_inputs(0,0)
       {}
 
 
@@ -50,7 +50,7 @@ namespace aspect
                                "with the visco_plastic material model."));
 
         n_components = 0;
-        material_inputs = MaterialModel::MaterialModelInputs<dim>(1,this->n_compositional_fields());
+        material_inputs.resize (1,this->n_compositional_fields());
 
         // Find out which fields are used.
         if (this->introspection().compositional_name_exists("plastic_strain"))

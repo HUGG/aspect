@@ -18,6 +18,7 @@
   <http://www.gnu.org/licenses/>.
 */
 
+#include <algorithm>
 #include <aspect/simulator/solver/matrix_free_operators.h>
 #include <aspect/simulator/solver/stokes_matrix_free.h>
 #include <aspect/simulator/solver/stokes_matrix_free_global_coarsening.h>
@@ -29,6 +30,8 @@
 #include <aspect/melt.h>
 #include <aspect/newton.h>
 
+#include <deal.II/fe/mapping_q.h>
+#include <deal.II/fe/mapping_q_cache.h>
 #include <deal.II/numerics/vector_tools.h>
 
 #include <deal.II/matrix_free/tools.h>
@@ -41,6 +44,8 @@
 #include <deal.II/dofs/dof_tools.h>
 #include <deal.II/dofs/dof_handler.h>
 #include <deal.II/dofs/dof_renumbering.h>
+
+#include <type_traits>
 
 namespace aspect
 {
@@ -122,17 +127,6 @@ namespace aspect
     // sanity check:
     Assert(this->introspection().variable("velocity").block_index==0, ExcNotImplemented());
     Assert(this->introspection().variable("pressure").block_index==1, ExcNotImplemented());
-
-    // We currently only support averaging of the viscosity to a constant or Q1:
-    using avg = MaterialModel::MaterialAveraging::AveragingOperation;
-    AssertThrow((this->get_parameters().material_averaging &
-                 (avg::arithmetic_average | avg::harmonic_average | avg::geometric_average
-                  | avg::pick_largest | avg::project_to_Q1 | avg::log_average
-                  | avg::harmonic_average_only_viscosity | avg::geometric_average_only_viscosity
-                  | avg::project_to_Q1_only_viscosity)) != 0,
-                ExcMessage("The matrix-free Stokes solver currently only works if material model averaging "
-                           "is enabled. If no averaging is desired, consider using ``project to Q1 only "
-                           "viscosity''."));
 
     // Currently cannot solve compressible flow with implicit reference density
     if (this->get_material_model().is_compressible() == true)
@@ -227,32 +221,38 @@ namespace aspect
     for (unsigned int l = min_level; l < max_level; ++l)
       transfers[l + 1].reinit(dofhandlers_projection[l + 1], dofhandlers_projection[l]);
 
-    Assert(dof_handler_projection.get_fe().degree == 0,
-           ExcNotImplemented());
-    const int degree = 0;
-
-    MGLevelObject<MatrixFreeOperators::MassOperator<dim, degree>> temp_ops;
-    temp_ops.resize(min_level, max_level);
-
-    for (auto l = min_level; l <= max_level; ++l)
-      {
-        AffineConstraints<double> cs;
-        std::shared_ptr<MatrixFree<dim,double>>
-        mf(new MatrixFree<dim,double>());
-        mf->reinit(this->get_mapping(), dofhandlers_projection[l], cs, QGauss<1>(degree+1));
-        temp_ops[l].initialize(mf);
-      }
-
-    GCMGTransferType<dim,GMGNumberType> transfer(transfers, [&](const auto l, auto &vec)
+    const auto interpolate_viscosity = [&](const auto degree_tag)
     {
-      (void) l;
-      (void) vec;
-      temp_ops[l].initialize_dof_vector(vec);
-    });
+      constexpr int degree = decltype(degree_tag)::value;
 
-    transfer.interpolate_to_mg(dof_handler_projection,
-                               level_viscosity_vector,
-                               active_viscosity_vector);
+      MGLevelObject<MatrixFreeOperators::MassOperator<dim, degree>> temp_ops;
+      temp_ops.resize(min_level, max_level);
+
+      for (auto l = min_level; l <= max_level; ++l)
+        {
+          AffineConstraints<double> cs;
+          std::shared_ptr<MatrixFree<dim,double>>
+          mf(new MatrixFree<dim,double>());
+          mf->reinit(get_level_triangulation_mapping(), dofhandlers_projection[l], cs, QGauss<1>(degree+1));
+          temp_ops[l].initialize(mf);
+        }
+
+      GCMGTransferType<dim,GMGNumberType> transfer(transfers, [&](const auto l, auto &vec)
+      {
+        temp_ops[l].initialize_dof_vector(vec);
+      });
+
+      transfer.interpolate_to_mg(dof_handler_projection,
+                                 level_viscosity_vector,
+                                 active_viscosity_vector);
+    };
+
+    if (dof_handler_projection.get_fe().degree == 0)
+      interpolate_viscosity(std::integral_constant<int, 0>());
+    else if (dof_handler_projection.get_fe().degree == 1)
+      interpolate_viscosity(std::integral_constant<int, 1>());
+    else
+      Assert(false, ExcNotImplemented());
 
     FEValues<dim> fe_values_projection (this->get_mapping(),
                                         fe_projection,
@@ -312,8 +312,7 @@ namespace aspect
                     // of the evaluated viscosity on the active level.
                     for (unsigned int q=0; q<n_q_points; ++q)
                       level_cell_data[level].viscosity(cell,q)[i]
-                        = std::min(std::max(values_on_quad[q], static_cast<GMGNumberType>(minimum_viscosity)),
-                                   static_cast<GMGNumberType>(maximum_viscosity));
+                        = std::clamp(values_on_quad[q], static_cast<GMGNumberType>(minimum_viscosity), static_cast<GMGNumberType>(maximum_viscosity));
                   }
 
               }
@@ -1428,32 +1427,38 @@ namespace aspect
 
 
   template <int dim, int velocity_degree>
+  const Mapping<dim> &
+  StokesMatrixFreeHandlerGlobalCoarseningImplementation<dim, velocity_degree>::get_level_triangulation_mapping()
+  {
+    // Periodic spherical shells use a MappingQCache, which caches the geometry
+    // of the cells of the simulator triangulation. The level triangulations
+    // created by create_geometric_coarsening_sequence() are separate,
+    // repartitioned triangulations, on which evaluating that cache is invalid
+    // (and crashes once the partitions differ). For periodic geometries, build
+    // an equivalent manifold-based mapping of the same degree for them
+    // instead. The level triangulations inherit the manifolds of the simulator
+    // triangulation, so both mappings describe the same geometry.
+    if (const MappingQ<dim> *mapping_q = dynamic_cast<const MappingQ<dim>*>(&this->get_mapping()))
+      if (dynamic_cast<const MappingQCache<dim>*>(mapping_q) != nullptr &&
+          this->get_geometry_model().get_periodic_boundary_pairs().size() > 0)
+        {
+          if (level_triangulation_mapping.get() == nullptr)
+            level_triangulation_mapping = std::make_unique<MappingQ<dim>>(mapping_q->get_degree());
+          return *level_triangulation_mapping;
+        }
+
+    return this->get_mapping();
+  }
+
+
+
+  template <int dim, int velocity_degree>
   void StokesMatrixFreeHandlerGlobalCoarseningImplementation<dim, velocity_degree>::setup_dofs()
   {
-    // Periodic boundary conditions with hanging nodes on the boundary currently
-    // cause the GMG not to converge. We catch this case early to provide the
-    // user with a reasonable error message:
-    {
-      bool have_periodic_hanging_nodes = false;
-      for (const auto &cell : this->get_triangulation().active_cell_iterators())
-        if (cell->is_locally_owned())
-          for (const auto f : cell->face_indices())
-            {
-              if (cell->has_periodic_neighbor(f))
-                {
-                  const auto &neighbor = cell->periodic_neighbor(f);
-                  // This way, we can only detect the case where the neighbor is coarser,
-                  // but this is fine as the other owner covers that situation:
-                  if (neighbor->level()<cell->level())
-                    have_periodic_hanging_nodes = true;
-                }
-            }
-
-      have_periodic_hanging_nodes = (dealii::Utilities::MPI::max(have_periodic_hanging_nodes ? 1 : 0, this->get_mpi_communicator())) == 1;
-      AssertThrow(have_periodic_hanging_nodes==false, ExcNotImplemented());
-    }
-
-    const Mapping<dim> &mapping = this->get_mapping();
+    // Mapping used on the level triangulations of the multigrid hierarchy;
+    // see get_level_triangulation_mapping() for why this can differ from
+    // the simulator mapping.
+    const Mapping<dim> &mapping = get_level_triangulation_mapping();
 
     // This vector will be refilled with the new MatrixFree objects below:
     matrix_free_objects.clear();
@@ -1500,6 +1505,8 @@ namespace aspect
             constraint.reinit(locally_relevant_dofs);
 #endif
 
+            this->get_geometry_model().make_periodicity_constraints(dof_handler,
+                                                                    constraint);
 
             std::set<types::boundary_id> dirichlet_boundary = this->get_boundary_velocity_manager().get_zero_boundary_velocity_indicators();
             for (const auto boundary_id: this->get_boundary_velocity_manager().get_prescribed_boundary_velocity_indicators())
@@ -1610,6 +1617,9 @@ namespace aspect
 #else
             constraint.reinit(locally_relevant_dofs);
 #endif
+
+            this->get_geometry_model().make_periodicity_constraints(dof_handler,
+                                                                    constraint);
 
             DoFTools::make_hanging_node_constraints(dof_handler, constraint);
             constraint.close();

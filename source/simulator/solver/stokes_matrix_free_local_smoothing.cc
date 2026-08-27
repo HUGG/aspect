@@ -18,6 +18,7 @@
   <http://www.gnu.org/licenses/>.
 */
 
+#include <algorithm>
 #include <aspect/simulator/solver/matrix_free_operators.h>
 #include <aspect/simulator/solver/stokes_matrix_free.h>
 #include <aspect/simulator/solver/stokes_matrix_free_local_smoothing.h>
@@ -282,8 +283,7 @@ namespace aspect
                     // of the evaluated viscosity on the active level.
                     for (unsigned int q=0; q<n_q_points; ++q)
                       level_cell_data[level].viscosity(cell,q)[i]
-                        = std::min(std::max(values_on_quad[q], static_cast<GMGNumberType>(minimum_viscosity)),
-                                   static_cast<GMGNumberType>(maximum_viscosity));
+                        = std::clamp(values_on_quad[q], static_cast<GMGNumberType>(minimum_viscosity), static_cast<GMGNumberType>(maximum_viscosity));
                   }
               }
           }
@@ -1471,7 +1471,13 @@ namespace aspect
 
       have_periodic_hanging_nodes = (Utilities::MPI::max(have_periodic_hanging_nodes ? 1 : 0,
                                                          this->get_mpi_communicator())) == 1;
-      AssertThrow(have_periodic_hanging_nodes==false, ExcNotImplemented());
+      AssertThrow(have_periodic_hanging_nodes==false,
+                  ExcMessage("The 'local smoothing' geometric multigrid solver does not "
+                             "support hanging nodes on periodic boundaries, which the "
+                             "adaptive mesh refinement has just created. Please set "
+                             "'Stokes GMG type = global coarsening' in subsection "
+                             "'Solver parameters/Stokes solver parameters' to use a "
+                             "multigrid variant that supports them."));
     }
 
     // This vector will be refilled with the new MatrixFree objects below:
