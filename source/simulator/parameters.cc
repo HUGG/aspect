@@ -419,6 +419,16 @@ namespace aspect
                          "the composition system gets solved. See `Stokes solver "
                          "parameters/Linear solver tolerance' for more details.");
 
+      prm.declare_entry ("Surface solver tolerance", "1e-8",
+                         Patterns::Double(0., 1.),
+                         "The relative tolerance up to which the linear systems for "
+                         "mesh surface deformation (e.g. the free surface and diffusion "
+                         "mesh deformation plugins) get solved. This is a separate, "
+                         "typically much better-conditioned problem than the Stokes system, "
+                         "so it should not reuse `Stokes solver parameters/Linear solver "
+                         "tolerance', which may be set far tighter than double precision "
+                         "can resolve.");
+
       prm.enter_subsection ("Advection solver parameters");
       {
         prm.declare_entry ("GMRES solver restart length", "50",
@@ -1676,6 +1686,7 @@ namespace aspect
     {
       temperature_solver_tolerance    = prm.get_double ("Temperature solver tolerance");
       composition_solver_tolerance    = prm.get_double ("Composition solver tolerance");
+      surface_solver_tolerance        = prm.get_double ("Surface solver tolerance");
 
       prm.enter_subsection ("Advection solver parameters");
       {

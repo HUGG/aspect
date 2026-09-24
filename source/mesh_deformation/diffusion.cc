@@ -424,7 +424,7 @@ namespace aspect
       preconditioner_mass.initialize(matrix, preconditioner_control);
 
       this->get_pcout() << "   Solving mesh surface diffusion" << std::endl;
-      SolverControl solver_control(5*system_rhs.size(), this->get_parameters().linear_stokes_solver_tolerance*system_rhs.l2_norm());
+      SolverControl solver_control(5*system_rhs.size(), this->get_parameters().surface_solver_tolerance*system_rhs.l2_norm());
       SolverCG<LinearAlgebra::Vector> cg(solver_control);
       try
         {

@@ -219,7 +219,7 @@ namespace aspect
 #endif
       preconditioner_mass.initialize(mass_matrix, preconditioner_control);
 
-      SolverControl solver_control(5*rhs.size(), this->get_parameters().linear_stokes_solver_tolerance*rhs.l2_norm());
+      SolverControl solver_control(5*rhs.size(), this->get_parameters().surface_solver_tolerance*rhs.l2_norm());
       SolverCG<LinearAlgebra::Vector> cg(solver_control);
 
       try
