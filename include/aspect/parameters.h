@@ -628,6 +628,7 @@ namespace aspect
      */
     double                         temperature_solver_tolerance;
     double                         composition_solver_tolerance;
+    double                         surface_solver_tolerance;
 
     // subsection: Advection solver parameters
     unsigned int                   advection_gmres_restart_length;
