@@ -1,5 +1,5 @@
 /*
-  Copyright (C) 2019 - 2025 by the authors of the ASPECT code.
+  Copyright (C) 2019 - 2026 by the authors of the ASPECT code.
 
   This file is part of ASPECT.
 
@@ -94,13 +94,13 @@ namespace aspect
                                     const std::vector<unsigned int> &n_phase_transitions_per_composition = {}) const;
 
           /**
-          * Compute the viscosity based on the grain boundary sliding law with
-          * the fixed grain size given in the input file.
-          * If @p n_phase_transitions_per_composition points to a vector of
-          * unsigned integers this is considered the number of phase transitions
-          * for each compositional field and viscosity will be first computed on
-          * each phase and then averaged for each compositional field.
-          */
+           * Compute the viscosity based on the grain boundary sliding law with
+           * the fixed grain size given in the input file.
+           * If @p n_phase_transitions_per_composition points to a vector of
+           * unsigned integers this is considered the number of phase transitions
+           * for each compositional field and viscosity will be first computed on
+           * each phase and then averaged for each compositional field.
+           */
           double
           compute_viscosity (const double strain_rate,
                              const double pressure,

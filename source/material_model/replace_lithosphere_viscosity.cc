@@ -1,5 +1,5 @@
 /*
-  Copyright (C) 2011 - 2024 by the authors of the ASPECT code.
+  Copyright (C) 2011 - 2026 by the authors of the ASPECT code.
 
   This file is part of ASPECT.
 
@@ -79,7 +79,7 @@ namespace aspect
                             "more information.");
           prm.declare_entry ("Lithosphere viscosity", "1e23",
                              Patterns::Double (0.),
-                             "The viscosity within lithosphere, applied above"
+                             "The viscosity within lithosphere, applied above "
                              "the maximum lithosphere depth.");
 
           InitialTemperature::LABDepth::LABDepthLookup<dim>::declare_parameters(prm);

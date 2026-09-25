@@ -1,5 +1,5 @@
 /*
-  Copyright (C) 2016 - 2023 by the authors of the ASPECT code.
+  Copyright (C) 2016 - 2026 by the authors of the ASPECT code.
 
   This file is part of ASPECT.
 
@@ -148,8 +148,8 @@ namespace aspect
         };
 
         /**
-        * Selected option to compute the reference profile for composition.
-        */
+         * Selected option to compute the reference profile for composition.
+         */
         CompositionProfile reference_composition;
 
         /**

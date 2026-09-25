@@ -1,5 +1,5 @@
 /*
-  Copyright (C) 2011 - 2024 by the authors of the ASPECT code.
+  Copyright (C) 2011 - 2026 by the authors of the ASPECT code.
 
   This file is part of ASPECT.
 
@@ -96,6 +96,9 @@ namespace aspect
 
   namespace StokesSolver
   {
+    template <int dim>
+    class Interface;
+
     template <int dim>
     class Direct;
 
@@ -1653,6 +1656,17 @@ namespace aspect
       stokes_A_block_is_symmetric () const;
 
       /**
+       * Return whether the Stokes solver is a matrix-free solver. A lot of
+       * assembly operations work differently depending on whether a matrix
+       * needs to be assembled or not.
+       *
+       * This function is implemented in
+       * <code>source/simulator/helper_functions.cc</code>.
+       */
+      bool
+      is_stokes_matrix_free() const;
+
+      /**
        * This function checks that the user-selected formulations of the
        * equations are consistent with the other inputs. If an incorrect
        * selection is detected it throws an exception. It for example assures that
@@ -2134,20 +2148,9 @@ namespace aspect
       std::unique_ptr<MeshDeformation::MeshDeformationHandler<dim>> mesh_deformation;
 
       /**
-       * Unique pointer for the matrix-free Stokes solver
+       * Unique pointer to the Stokes solver
        */
-      std::unique_ptr<StokesMatrixFreeHandler<dim>> stokes_matrix_free;
-
-      /**
-       * Unique pointer for the matrix-based Stokes solver
-       */
-      std::unique_ptr<StokesSolver::MatrixBased<dim>> stokes_matrix_based;
-
-      /**
-       * Unique pointer for the direct Stokes solver
-       */
-      std::unique_ptr<StokesSolver::Direct<dim>> stokes_direct;
-
+      std::unique_ptr<StokesSolver::Interface<dim>> stokes_solver;
 
       friend class boost::serialization::access;
       friend class SimulatorAccess<dim>;
@@ -2156,7 +2159,6 @@ namespace aspect
       friend class StokesMatrixFreeHandler<dim>;
       friend class StokesSolver::MatrixBased<dim>;
       template <int dimension, int velocity_degree> friend class StokesMatrixFreeHandlerLocalSmoothingImplementation;
-      template <int dimension, int velocity_degree> friend class StokesMatrixFreeHandlerGlobalCoarseningImplementation;
       friend struct Parameters<dim>;
   };
 }

@@ -1,5 +1,5 @@
 /*
-  Copyright (C) 2017 - 2024 by the authors of the ASPECT code.
+  Copyright (C) 2017 - 2026 by the authors of the ASPECT code.
 
   This file is part of ASPECT.
 
@@ -405,48 +405,27 @@ namespace aspect
     // of the same stress tensor in the computation of the initial residual
     // for the fields that belong to that tensor. In other words, we compute an
     // averaged initial residual using those fields that belong to the ve_stress tensor.
-    // The ve_stress_old values are not independent components of the solution vector,
-    // so we do not need to compute a residual for them and set their residual to zero.
     // TODO Is this residual calculation representative of a second order tensor?
-    if (parameters.enable_elasticity == true)
+    if (parameters.enable_elasticity == true && residual)
       {
+        const std::vector<unsigned int> &stress_field_indices = introspection.get_indices_for_fields_of_type(CompositionalFieldDescription::stress);
+        const double n_stress_fields = stress_field_indices.size();
+
+        AssertThrow((n_stress_fields == 2*SymmetricTensor<2,dim>::n_independent_components ||
+                     n_stress_fields == SymmetricTensor<2,dim>::n_independent_components),
+                    ExcMessage("The number of stress tensor element fields does not equal the number of expected components."));
+
         double stress_initial_residual = 0.0;
-        std::vector<unsigned int> stress_indices;
-        std::vector<unsigned int> old_stress_indices;
-        stress_indices.push_back(introspection.compositional_index_for_name("ve_stress_xx"));
-        stress_indices.push_back(introspection.compositional_index_for_name("ve_stress_yy"));
-        old_stress_indices.push_back(introspection.compositional_index_for_name("ve_stress_xx_old"));
-        old_stress_indices.push_back(introspection.compositional_index_for_name("ve_stress_yy_old"));
-        if (dim == 2)
-          {
-            stress_indices.push_back(introspection.compositional_index_for_name("ve_stress_xy"));
-            old_stress_indices.push_back(introspection.compositional_index_for_name("ve_stress_xy_old"));
-          }
-        else if (dim == 3)
-          {
-            stress_indices.push_back(introspection.compositional_index_for_name("ve_stress_zz"));
-            stress_indices.push_back(introspection.compositional_index_for_name("ve_stress_xy"));
-            stress_indices.push_back(introspection.compositional_index_for_name("ve_stress_xz"));
-            stress_indices.push_back(introspection.compositional_index_for_name("ve_stress_yz"));
-            old_stress_indices.push_back(introspection.compositional_index_for_name("ve_stress_zz_old"));
-            old_stress_indices.push_back(introspection.compositional_index_for_name("ve_stress_xy_old"));
-            old_stress_indices.push_back(introspection.compositional_index_for_name("ve_stress_xz_old"));
-            old_stress_indices.push_back(introspection.compositional_index_for_name("ve_stress_yz_old"));
-          }
 
+        for (unsigned int c=0; c<SymmetricTensor<2,dim>::n_independent_components; ++c)
+          stress_initial_residual += system_rhs.block(introspection.block_indices.compositional_fields[stress_field_indices[c]]).l2_norm();
 
-        if (residual)
-          {
-            const double n_stress_fields = stress_indices.size();
-            for (auto &c : stress_indices)
-              stress_initial_residual += system_rhs.block(introspection.block_indices.compositional_fields[c]).l2_norm() / n_stress_fields;
+        stress_initial_residual /= static_cast<double>(SymmetricTensor<2,dim>::n_independent_components);
 
-            // Overwrite the initial residual
-            for (auto &c : stress_indices)
-              (*residual)[c] = stress_initial_residual;
-            for (auto &c : old_stress_indices)
-              (*residual)[c] = 0.;
-          }
+        // The ve_stress_old values if they exist are not independent components of the solution vector,
+        // so we do not compute a residual for them and set their residual to zero.
+        for (unsigned int c=0; c<n_stress_fields; ++c)
+          (*residual)[stress_field_indices[c]] = (c<SymmetricTensor<2,dim>::n_independent_components) ? stress_initial_residual : 0.;
       }
 
 
@@ -503,12 +482,17 @@ namespace aspect
       }
 
     // Re-compute the pressure scaling factor for the Stokes assembly
-    pressure_scaling = compute_pressure_scaling_factor();
+    const double new_scaling = compute_pressure_scaling_factor();
+    if (std::isnan(pressure_scaling) || pressure_scaling != new_scaling)
+      {
+        rebuild_stokes_matrix = rebuild_stokes_preconditioner = true;
+        pressure_scaling = new_scaling;
+      }
     assemble_stokes_system ();
 
     // build the preconditioner
-    if (stokes_matrix_free)
-      stokes_matrix_free->build_preconditioner();
+    if (is_stokes_matrix_free())
+      dynamic_cast<StokesMatrixFreeHandler<dim>*>(stokes_solver.get())->build_preconditioner();
     else
       build_stokes_preconditioner();
 
@@ -596,14 +580,19 @@ namespace aspect
     // build the preconditioner
     auto build_preconditioner = [&]()
     {
-      if (stokes_matrix_free)
-        stokes_matrix_free->build_preconditioner();
+      if (is_stokes_matrix_free())
+        dynamic_cast<StokesMatrixFreeHandler<dim>*>(stokes_solver.get())->build_preconditioner();
       else
         build_stokes_preconditioner();
     };
 
     // Re-compute the pressure scaling factor for the Stokes assembly
-    pressure_scaling = compute_pressure_scaling_factor();
+    const double new_scaling = compute_pressure_scaling_factor();
+    if (std::isnan(pressure_scaling) || pressure_scaling != new_scaling)
+      {
+        rebuild_stokes_matrix = rebuild_stokes_preconditioner = true;
+        pressure_scaling = new_scaling;
+      }
 
     if (nonlinear_iteration == 0)
       {

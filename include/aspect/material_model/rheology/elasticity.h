@@ -1,5 +1,5 @@
 /*
-  Copyright (C) 2019 - 2024 by the authors of the ASPECT code.
+  Copyright (C) 2019 - 2026 by the authors of the ASPECT code.
 
   This file is part of ASPECT.
 
@@ -54,18 +54,18 @@ namespace aspect
         std::vector<double> elastic_shear_moduli;
 
         /**
-        * Elastic viscosity at the evaluation points passed to
-        * the instance of MaterialModel::Interface::evaluate() that fills
-        * the current object.
-        */
+         * Elastic viscosity at the evaluation points passed to
+         * the instance of MaterialModel::Interface::evaluate() that fills
+         * the current object.
+         */
         std::vector<double> elastic_viscosity;
 
         /**
-        * The deviatoric stress of the current timestep, so including
-        * the rotation, advection and stress update, at the evaluation points
-        * passed to the instance of MaterialModel::Interface::evaluate()
-        * that fills the current object.
-        */
+         * The deviatoric stress of the current timestep, so including
+         * the rotation, advection and stress update, at the evaluation points
+         * passed to the instance of MaterialModel::Interface::evaluate()
+         * that fills the current object.
+         */
         std::vector<SymmetricTensor<2,dim>> deviatoric_stress;
     };
 
@@ -234,6 +234,16 @@ namespace aspect
                                               const SymmetricTensor<2, dim> &stress_old,
                                               const double viscosity_pre_yield,
                                               const double shear_modulus) const;
+
+          /**
+          * Whether the unrotated viscoelastic stress is required in order to update the
+          * stress values. This is the case if the elastic time step is not equal to the
+          * computational time step of ASPECT, either because a fixed elastic time step
+          * was requested, or because a fixed stabilization factor was chosen for the
+          * elastic time scale.
+          */
+          bool
+          require_unrotated_viscoelastic_stress() const;
 
           /**
            * Compute the elastic time step.

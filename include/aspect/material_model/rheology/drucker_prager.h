@@ -1,5 +1,5 @@
 /*
-  Copyright (C) 2019 - 2024 by the authors of the ASPECT code.
+  Copyright (C) 2019 - 2026 by the authors of the ASPECT code.
 
   This file is part of ASPECT.
 
@@ -183,11 +183,11 @@ namespace aspect
           /**
            * Compute the LHS and RHS dilation terms for the Stokes system.
            * LHS: $\bar\alpha\alpha / \eta^{ve}$;
-           * RHS: $\bar(2\eta^{ve}\varepsilon^{eff} - k) / \eta^{ve}$.
-           * Here $\alpha$ and $\bar\alpha$ correspond to the friction angle
+           * RHS: $\bar\alpha(2\eta^{ve}\varepsilon^{eff} - k) / \eta^{ve}$.
+           * Here $\alpha$ and $\bar\alpha$ correspond to the sine of the friction angle
            * and the dilation angle, respectively, $k$ is cohesion,
            * $\eta^{ve}$ is the non-yielding viscosity, and $\varepsilon^{eff}$
-           * is the effective viscosity.
+           * is the effective strain rate.
            */
           std::pair<double,double>
           compute_dilation_terms_for_stokes_system(const DruckerPragerParameters &drucker_prager_parameters,
@@ -228,7 +228,7 @@ namespace aspect
           std::vector<double> cohesions;
 
           /**
-           *The prefactors for the yield stress.
+           * The prefactors for the yield stress.
            * This variable is read from the parameter file through a parameter called 'Prefactors for yield stress'.
            */
           std::vector<double> yield_stress_prefactors;

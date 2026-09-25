@@ -1,5 +1,5 @@
 /*
-  Copyright (C) 2020 - 2024 by the authors of the ASPECT code.
+  Copyright (C) 2020 - 2026 by the authors of the ASPECT code.
 
   This file is part of ASPECT.
 
@@ -189,9 +189,11 @@ namespace aspect
 
             // The old stresses are only changed in the operator splitting step and have been advected into
             // the current timestep. They are stored in the second set of n_independent_components.
-            stress_old = (Utilities::Tensors::to_symmetric_tensor<dim>(&in.composition[i][stress_field_indices[SymmetricTensor<2, dim>::n_independent_components]],
-                                                                       &in.composition[i][stress_field_indices[SymmetricTensor<2, dim>::n_independent_components]]+SymmetricTensor<2, dim>::n_independent_components));
-
+            if (stress_field_indices.size() == 2*SymmetricTensor<2,dim>::n_independent_components)
+              {
+                stress_old = (Utilities::Tensors::to_symmetric_tensor<dim>(&in.composition[i][stress_field_indices[SymmetricTensor<2, dim>::n_independent_components]],
+                                                                           &in.composition[i][stress_field_indices[SymmetricTensor<2, dim>::n_independent_components]]+SymmetricTensor<2, dim>::n_independent_components));
+              }
 
             // Average the compositional contributions to elastic_shear_moduli here and use
             // a volume-averaged shear modulus in the loop over the compositions below.
@@ -748,7 +750,7 @@ namespace aspect
 
         if (this->get_parameters().enable_elasticity)
           {
-            // Set a mask (false) for the 2*n_independent_components fields representing the viscoelastic
+            // Set a mask (false) for the fields representing the viscoelastic
             // stress tensor components so that they are excluded from the volume fraction computation.
             const std::vector<unsigned int> &stress_field_indices = this->introspection().get_indices_for_fields_of_type(CompositionalFieldDescription::stress);
             for (const unsigned int field_index : stress_field_indices)

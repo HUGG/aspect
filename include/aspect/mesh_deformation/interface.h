@@ -1,5 +1,5 @@
 /*
-  Copyright (C) 2011 - 2024 by the authors of the ASPECT code.
+  Copyright (C) 2011 - 2026 by the authors of the ASPECT code.
 
   This file is part of ASPECT.
 
@@ -32,7 +32,6 @@
 #include <deal.II/base/index_set.h>
 #include <deal.II/base/mg_level_object.h>
 #include <deal.II/lac/la_parallel_vector.h>
-#include <deal.II/multigrid/mg_constrained_dofs.h>
 #include <deal.II/multigrid/mg_transfer_matrix_free.h>
 #include <deal.II/multigrid/mg_transfer_global_coarsening.templates.h>
 #include <aspect/simulator/assemblers/interface.h>
@@ -439,8 +438,12 @@ namespace aspect
          * deformation boundaries to describe a displacement (initial
          * topography) to be used during the simulation. The
          * displacement is given by the active deformation plugins.
+         *
+         * The inhomogeneities contributed by the deformation plugins are
+         * multiplied by @p initial_deformation_scale. This is used to apply
+         * the initial deformation incrementally over a number of substeps.
          */
-        void make_initial_constraints ();
+        void make_initial_constraints (const double initial_deformation_scale);
 
         /**
          * Compute the constraints for the mesh velocity on the
@@ -487,6 +490,31 @@ namespace aspect
         void compute_mesh_displacements_gmg_for_degree();
 
         /**
+         * Check that the current mesh deformation has not produced any cells
+         * with a negative Jacobian determinant (inverted cells) in the deformed
+         * mesh. If such a cell is found, this function aborts with an
+         * explanatory error message.
+         */
+        void check_mesh_deformation ();
+
+        /**
+         * Solve the matrix-free mesh deformation system using a geometric
+         * multigrid preconditioner with local smoothing.
+         */
+        template <unsigned int mesh_deformation_fe_degree,
+                  typename SystemOperatorType>
+        void solve_mesh_deformation_local_smoothing(
+          const SystemOperatorType &laplace_operator,
+          const dealii::LinearAlgebra::distributed::Vector<double> &rhs,
+          dealii::LinearAlgebra::distributed::Vector<double> &solution);
+
+        /**
+         * Set up the multigrid hierarchy used by the local-smoothing mesh
+         * deformation solver.
+         */
+        void setup_local_smoothing_multigrid();
+
+        /**
          * Set up the vector with initial displacements of the mesh
          * due to the initial topography, as supplied by the initial
          * topography plugin based on the surface coordinates of the
@@ -509,9 +537,10 @@ namespace aspect
         void interpolate_mesh_velocity ();
 
         /**
-         * Update the mesh deformation for the multigrid levels.
+         * Update the mesh deformation on the levels of the local-smoothing
+         * multigrid hierarchy.
          */
-        void update_multilevel_deformation ();
+        void update_local_smoothing_multigrid();
 
         /**
          * Reference to the Simulator object to which a MeshDeformationHandler
@@ -674,6 +703,18 @@ namespace aspect
         unsigned int explicit_mapping_order;
 
         /**
+         * Number of substeps over which the initial mesh deformation
+         * (initial topography) is applied. The full initial deformation is
+         * split into this many equal steps; on substep k of K only a fraction
+         * k/K of the initial topography is prescribed, and each subsequent
+         * substep is solved on the already deformed configuration. This
+         * avoids producing inverted cells (negative Jacobian determinant) for
+         * steep initial topography, which a single-shot deformation (K = 1)
+         * can create.
+         */
+        unsigned int initial_deformation_substeps;
+
+        /**
          * If required, store a mapping for each multigrid level.
          */
         MGLevelObject<std::unique_ptr<Mapping<dim>>> level_mappings;
@@ -684,14 +725,10 @@ namespace aspect
         MGLevelObject<dealii::LinearAlgebra::distributed::Vector<double>> level_displacements;
 
         /**
-         * Multigrid transfer operator for the displacements
+         * Multigrid transfer operator for the displacements used by the
+         * local-smoothing GMG implementation.
          */
-        MGTransferType<dim, double> mg_transfer;
-
-        /**
-         * Multigrid level constraints for the displacements
-         */
-        MGConstrainedDoFs mg_constrained_dofs;
+        MGTransferType<dim, double> local_smoothing_mg_transfer;
 
         friend class Simulator<dim>;
         friend class SimulatorAccess<dim>;

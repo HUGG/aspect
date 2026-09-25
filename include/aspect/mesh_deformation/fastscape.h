@@ -1,5 +1,5 @@
 /*
-  Copyright (C) 2011 - 2024 by the authors of the ASPECT code.
+  Copyright (C) 2011 - 2026 by the authors of the ASPECT code.
 
   This file is part of ASPECT.
 
@@ -22,8 +22,6 @@
 #define _aspect_mesh_deformation_fastscape_h
 
 #include <aspect/global.h>
-
-#ifdef ASPECT_WITH_FASTSCAPE
 
 #include <aspect/mesh_deformation/interface.h>
 #include <deal.II/base/parsed_function.h>
@@ -743,5 +741,4 @@ namespace aspect
   }
 }
 
-#endif
 #endif

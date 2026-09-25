@@ -1,5 +1,5 @@
 /*
-  Copyright (C) 2015 - 2024 by the authors of the ASPECT code.
+  Copyright (C) 2015 - 2026 by the authors of the ASPECT code.
 
   This file is part of ASPECT.
 
@@ -19,21 +19,20 @@
 */
 
 #include <aspect/particle/manager.h>
+
 #include <aspect/global.h>
 #include <aspect/utilities.h>
-#include <aspect/simulator.h>
 #include <aspect/melt.h>
+#include <aspect/particle/distribution.h>
 
 #include <deal.II/base/quadrature_lib.h>
 #include <deal.II/fe/fe_values.h>
 #include <deal.II/grid/grid_tools.h>
-
 #include <deal.II/fe/mapping_cartesian.h>
 
 #include <boost/serialization/map.hpp>
 #include <boost/archive/text_oarchive.hpp>
 #include <boost/archive/text_iarchive.hpp>
-#include <aspect/particle/distribution.h>
 
 namespace aspect
 {
