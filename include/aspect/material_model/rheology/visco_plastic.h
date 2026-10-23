@@ -326,7 +326,9 @@ namespace aspect
 
           /**
            * Scaling factor for the viscosity increase due to depletion.
-           * The viscosity multiplier is: max(depletion_viscosity_scaling_factor * depletion + 1.0, 1.0).
+           * The viscous (creep) viscosity is multiplied by
+           * max((depletion_viscosity_scaling_factor - 1.0) * depletion + 1.0, 1.0)
+           * before plastic yielding, so the yield stress is not scaled.
            */
           double depletion_viscosity_scaling_factor;
 
@@ -464,15 +466,23 @@ namespace aspect
           Rheology::DruckerPrager<dim> drucker_prager_plasticity;
 
           /**
-           * Name of the compositional field for which a linearly depth-dependent
-           * upper viscosity limit is applied between two specified depths.
-           * An empty string disables this feature.
+           * Names of the compositional fields (or 'background') for which a
+           * log-linearly depth-dependent upper viscosity limit is applied between
+           * two specified depths. An empty list disables this feature.
            */
-          std::string depth_dependent_max_viscosity_composition;
+          std::vector<std::string> depth_dependent_max_viscosity_compositions;
+
+          /**
+           * Whether the depth-dependent upper viscosity limit applies to entry j
+           * of the volume fractions (j=0 is the background, j=k+1 the k-th chemical
+           * composition field). Filled in parse_parameters() from
+           * depth_dependent_max_viscosity_compositions.
+           */
+          std::vector<bool> depth_dependent_max_viscosity_for_composition;
 
           /**
            * Depths bounding the range over which the maximum viscosity is
-           * linearly interpolated for the specified composition.
+           * log-linearly interpolated for the specified compositions.
            * top_depth is the shallower boundary, bottom_depth is the deeper one.
            */
           double depth_dependent_max_viscosity_top_depth;

@@ -316,16 +316,14 @@ namespace aspect
 
           MaterialUtilities::fill_averaged_equation_of_state_outputs(eos_outputs[i], mass_fractions, volume_fractions[i], i, out);
 
-	        // If a field called "depletion" exist, do density scaling using its value
-          const std::vector<double> &composition = in.composition[i];
+          // If a field called "depletion" exists, reduce the density of material that is more depleted than the
+          // most depleted lookup table: rho = rho_table * (1 - coefficient * (depletion - threshold)).
           if (this->introspection().compositional_name_exists("depletion"))
             {
               const unsigned int depletion_index = this->introspection().compositional_index_for_name("depletion");
-              // If the depletion-% is at least 30%, reduce its density 
-              if (composition[depletion_index] >= 0.3) 
-                {
-                  out.densities[i] = out.densities[i] * (1.0 - 0.04 * (composition[depletion_index] - 0.3));
-                }
+              const double excess_depletion = in.composition[i][depletion_index] - depletion_density_threshold;
+              if (excess_depletion > 0.0)
+                out.densities[i] *= 1.0 - depletion_density_coefficient * excess_depletion;
             }
 
           fill_prescribed_outputs(i, volume_fractions[i], in, out);
@@ -418,6 +416,17 @@ namespace aspect
                              Patterns::Selection("arithmetic|harmonic|geometric|maximum composition"),
                              "Method to average viscosities over multiple compositional fields. "
                              "One of arithmetic, harmonic, geometric or maximum composition.");
+          prm.declare_entry ("Depletion density threshold", "0.225",
+                             Patterns::Double (0.),
+                             "Depletion (melt extraction fraction) that the most depleted lookup table, e.g. the "
+                             "harzburgite table, represents. If a compositional field called 'depletion' exists, "
+                             "the density of material that is more depleted than this is reduced as "
+                             "rho*(1 - c*(depletion - threshold)), where c is the 'Depletion density coefficient'. "
+                             "Units: none.");
+          prm.declare_entry ("Depletion density coefficient", "0.04",
+                             Patterns::Double (0.),
+                             "Relative density reduction per unit depletion beyond the 'Depletion density "
+                             "threshold' (0.04 after Perchuk et al., 2023). Units: none.");
 
           // Thermal conductivity parameters
           ThermalConductivity::Constant<dim>::declare_parameters (prm);
@@ -476,6 +485,8 @@ namespace aspect
           min_eta                         = prm.get_double ("Minimum viscosity");
           max_eta                         = prm.get_double ("Maximum viscosity");
           max_lateral_eta_variation       = prm.get_double ("Maximum lateral viscosity variation");
+          depletion_density_threshold     = prm.get_double ("Depletion density threshold");
+          depletion_density_coefficient   = prm.get_double ("Depletion density coefficient");
           viscosity_averaging_scheme      = MaterialUtilities::parse_compositional_averaging_operation ("Viscosity averaging scheme",
                                             prm);
 

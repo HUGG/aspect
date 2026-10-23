@@ -524,9 +524,51 @@ namespace aspect
           n_pressure=0;
           has_dominant_phase_column = false;
 
+          // Only the root process reads and parses the file. Afterwards, the
+          // header information is broadcast to the other processes, and the
+          // data tables are placed in shared memory, so that every node holds
+          // only one copy of the tables instead of one copy per process.
+          const unsigned int root_process = 0;
+          const auto distribute_data = [&]()
+          {
+            delta_press               = Utilities::MPI::broadcast (comm, delta_press, root_process);
+            min_press                 = Utilities::MPI::broadcast (comm, min_press, root_process);
+            max_press                 = Utilities::MPI::broadcast (comm, max_press, root_process);
+            delta_temp                = Utilities::MPI::broadcast (comm, delta_temp, root_process);
+            min_temp                  = Utilities::MPI::broadcast (comm, min_temp, root_process);
+            max_temp                  = Utilities::MPI::broadcast (comm, max_temp, root_process);
+            n_temperature             = Utilities::MPI::broadcast (comm, n_temperature, root_process);
+            n_pressure                = Utilities::MPI::broadcast (comm, n_pressure, root_process);
+            n_columns                 = Utilities::MPI::broadcast (comm, n_columns, root_process);
+            has_dominant_phase_column = Utilities::MPI::broadcast (comm, has_dominant_phase_column, root_process);
+            phase_column_names        = Utilities::MPI::broadcast (comm, phase_column_names, root_process);
+            dominant_phase_names      = Utilities::MPI::broadcast (comm, dominant_phase_names, root_process);
+
+            density_values.replicate_across_communicator (comm, root_process);
+            thermal_expansivity_values.replicate_across_communicator (comm, root_process);
+            specific_heat_values.replicate_across_communicator (comm, root_process);
+            vp_values.replicate_across_communicator (comm, root_process);
+            vs_values.replicate_across_communicator (comm, root_process);
+            enthalpy_values.replicate_across_communicator (comm, root_process);
+
+            if (has_dominant_phase_column)
+              dominant_phase_indices.replicate_across_communicator (comm, root_process);
+
+            phase_volume_fractions.resize(phase_column_names.size());
+            for (auto &phase_volume_fraction : phase_volume_fractions)
+              phase_volume_fraction.replicate_across_communicator (comm, root_process);
+          };
+
+          if (Utilities::MPI::this_mpi_process(comm) != root_process)
+            {
+              distribute_data();
+              return;
+            }
+
           std::string temp;
-          // Read data from disk and distribute among processes
-          std::istringstream in(Utilities::read_and_distribute_file_content(filename, comm));
+          // Read data from disk. Only the root process gets here, so the file
+          // content does not need to be distributed to the other processes.
+          std::istringstream in(Utilities::read_and_distribute_file_content(filename, MPI_COMM_SELF));
 
           // The following lines read in a PerpleX tab file in standard format
           // The first 13 lines are a header in the format:
@@ -786,6 +828,7 @@ namespace aspect
             }
           AssertThrow(i == n_temperature*n_pressure, ExcMessage("Material table size not consistent with header."));
 
+          distribute_data();
         }
 
 

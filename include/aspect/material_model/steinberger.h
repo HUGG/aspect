@@ -283,6 +283,15 @@ namespace aspect
         double max_lateral_eta_variation;
 
         /**
+         * Depletion that the most depleted lookup table represents, and the relative density reduction per unit
+         * depletion beyond it, applied if a compositional field called 'depletion' exists.
+         * These variables are read from the parameter file through parameters called 'Depletion density
+         * threshold' and 'Depletion density coefficient'.
+         */
+        double depletion_density_threshold;
+        double depletion_density_coefficient;
+
+        /**
          * Information about the location of data files.
          *
          * This variable is read from the parameter file through a parameter called 'Data directory'.
