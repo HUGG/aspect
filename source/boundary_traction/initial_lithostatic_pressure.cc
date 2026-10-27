@@ -194,6 +194,15 @@ namespace aspect
           topo = this->get_initial_topography_model().value(surface_point);
         }
 
+      // For box geometries, start the integration at the actual (topographic) surface at the
+      // representative point: the traction is looked up by the depth below that surface
+      // (GeometryModel::depth() of the box geometries includes the initial topography). Starting
+      // at the undeformed top instead shifts the profile down by 'topo' and makes the pressure
+      // g * topo * (rho(depth) - rho(surface)) too high at depth.
+      if (Plugins::plugin_type_matches<const GeometryModel::Box<dim>> (this->get_geometry_model()) ||
+          Plugins::plugin_type_matches<const GeometryModel::TwoMergedBoxes<dim>> (this->get_geometry_model()))
+        representative_point[dim-1] += topo;
+
       // The spacing of the depth profile at the location of the representative point.
       const double delta_z = (depth_extent + topo) / (n_points-1);
 
@@ -481,7 +490,8 @@ namespace aspect
                                             "the depth coordinate is not used. "
                                             "Note that when initial topography is included, the initial "
                                             "topography at the user-provided representative point is used "
-                                            "to compute the profile. If at other points the (initial) topography "
+                                            "to compute the profile; for box geometries, the profile starts "
+                                            "at that topographic surface. If at other points the (initial) topography "
                                             "is higher, the behavior of this plugin at later timesteps depends "
                                             "on the domain geometry. The depth returned by the geometry model "
                                             "does (box geometries) or does not (spherical "

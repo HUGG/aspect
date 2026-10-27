@@ -184,6 +184,13 @@ namespace aspect
           topo = this->get_initial_topography_model().value(surface_point);
         }
 
+      // Start the integration at the actual (topographic) surface at the representative point:
+      // the traction is looked up by the depth below that surface (GeometryModel::depth() of the
+      // box geometries includes the initial topography). Starting at the undeformed top instead
+      // shifts the profile down by 'topo' and makes the pressure g * topo * (rho(depth) - rho(surface))
+      // too high at depth.
+      representative_point[dim-1] += topo;
+
       // The spacing of the depth profile at the location of the representative point.
       const double delta_z = (depth_extent + topo) / (n_points-1);
 
@@ -456,7 +463,8 @@ namespace aspect
                                             "'initial lithostatic pressure' plugin, by integrating "
                                             "the pressure downward based on the initial composition "
                                             "and temperature along a user-specified representative depth "
-                                            "profile (see 'Representative point'). Both 'Representative "
+                                            "profile (see 'Representative point'), starting at the "
+                                            "(initial topographic) surface at the representative point. Both 'Representative "
                                             "point' and 'Pressure perturbation percentage' are keyed by "
                                             "symbolic boundary name, and every boundary this plugin is "
                                             "applied to must have an entry in each. Instead of a constant "
