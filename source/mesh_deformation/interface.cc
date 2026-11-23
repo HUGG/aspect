@@ -45,6 +45,11 @@
 
 #include <deal.II/numerics/vector_tools.h>
 
+#include <deal.II/base/table.h>
+#include <deal.II/matrix_free/fe_evaluation.h>
+
+#include <array>
+#include <cmath>
 #include <limits>
 
 #include <aspect/melt.h>
@@ -415,6 +420,24 @@ namespace aspect
                            "topography but requires a linear solve in each step. The default value of 1 "
                            "applies the entire initial deformation in one step.");
 
+        prm.declare_entry ("Mesh stiffening exponent", "0.",
+                           Patterns::Double(0.),
+                           "Exponent $\\chi$ of a Jacobian-based stiffening of the vector Laplace "
+                           "problem that moves the mesh nodes in the interior of the domain "
+                           "(Stein, Tezduyar and Benney, 2003, J. Appl. Mech. 70, 58--63). At every "
+                           "quadrature point the Laplace coefficient is "
+                           "$\\min(F_{max}, \\max(1, J_0/J)^\\chi)$, where $J$ is the Jacobian "
+                           "determinant of the deformed cell and $J_0$ that of the undeformed cell. "
+                           "Cells that the mesh deformation has compressed therefore become stiffer, "
+                           "and further deformation is passed on to the cells around them instead "
+                           "of compressing them more. Cells that have not been compressed keep a "
+                           "coefficient of one. The default of zero gives the unweighted Laplace problem.");
+        prm.declare_entry ("Maximum mesh stiffening factor", "1000.",
+                           Patterns::Double(1.),
+                           "Upper limit $F_{max}$ of the Laplace coefficient of the mesh stiffening "
+                           "(see 'Mesh stiffening exponent'). It limits the coefficient contrast "
+                           "that the mesh deformation solvers have to handle.");
+
         prm.enter_subsection ("Free surface");
         {
           prm.declare_entry("Free surface stabilization theta", "0.5",
@@ -598,6 +621,9 @@ namespace aspect
           }
 
         initial_deformation_substeps = prm.get_integer("Number of initial mesh deformation substeps");
+
+        mesh_stiffening_exponent   = prm.get_double("Mesh stiffening exponent");
+        max_mesh_stiffening_factor = prm.get_double("Maximum mesh stiffening factor");
       }
       prm.leave_subsection ();
 
@@ -905,6 +931,104 @@ namespace aspect
 
 
 
+    namespace
+    {
+      /**
+       * Laplace coefficient of the Jacobian-based mesh stiffening for the ratio
+       * J_0/J of the undeformed to the deformed Jacobian determinant. Only
+       * compressed cells (ratio > 1) are stiffened. A degenerate or inverted
+       * cell (ratio not positive) gets the maximum factor.
+       */
+      double
+      mesh_stiffening_factor (const double undeformed_over_deformed_jacobian,
+                              const double exponent,
+                              const double max_factor)
+      {
+        if (!(undeformed_over_deformed_jacobian > 0.))
+          return max_factor;
+        return std::min(max_factor,
+                        std::pow(std::max(1., undeformed_over_deformed_jacobian), exponent));
+      }
+
+
+
+      /**
+       * Table of the mesh stiffening coefficient at every quadrature point of
+       * every cell batch of @p matrix_free, for LaplaceOperator::set_coefficient().
+       * Works for the active cells and for multigrid levels.
+       *
+       * The undeformed Jacobian determinant of a cell is its measure on the
+       * triangulation, whose vertices are never moved (the deformation is carried
+       * by the MappingQEulerian), divided by the unit measure of the reference
+       * cell. The deformed one is 1/det(J^{-T}) from the mapping data of
+       * @p matrix_free.
+       *
+       * The largest factor and the number of cells with a factor of two or more
+       * are added to @p max_factor_found and @p n_stiffened_cells.
+       */
+      template <int dim, int fe_degree>
+      std::shared_ptr<Table<2, VectorizedArray<double>>>
+      compute_mesh_stiffening (const MatrixFree<dim, double> &matrix_free,
+                               const double exponent,
+                               const double max_factor,
+                               double &max_factor_found,
+                               unsigned int &n_stiffened_cells)
+      {
+        constexpr unsigned int n_lanes = VectorizedArray<double>::size();
+        FEEvaluation<dim, fe_degree, fe_degree + 1, dim, double> phi(matrix_free);
+
+        auto coefficient
+          = std::make_shared<Table<2, VectorizedArray<double>>>(matrix_free.n_cell_batches(),
+                                                                phi.n_q_points);
+
+        for (unsigned int batch = 0; batch < matrix_free.n_cell_batches(); ++batch)
+          {
+            phi.reinit(batch);
+            const unsigned int n_filled_lanes = matrix_free.n_active_entries_per_cell_batch(batch);
+
+            std::array<double, n_lanes> undeformed_jacobian;
+            undeformed_jacobian.fill(1.);
+            for (unsigned int lane = 0; lane < n_filled_lanes; ++lane)
+              undeformed_jacobian[lane] = matrix_free.get_cell_iterator(batch, lane)->measure();
+
+            std::array<double, n_lanes> cell_max_factor;
+            cell_max_factor.fill(1.);
+
+            for (unsigned int q = 0; q < phi.n_q_points; ++q)
+              {
+                // det(J^{-T}) = 1/det(J)
+                const VectorizedArray<double> inverse_jacobian_determinant
+                  = determinant(phi.inverse_jacobian(q));
+
+                for (unsigned int lane = 0; lane < n_lanes; ++lane)
+                  {
+                    double factor = 1.;
+                    if (lane < n_filled_lanes)
+                      {
+                        factor = mesh_stiffening_factor(undeformed_jacobian[lane]
+                                                        * inverse_jacobian_determinant[lane],
+                                                        exponent,
+                                                        max_factor);
+                        cell_max_factor[lane] = std::max(cell_max_factor[lane], factor);
+                      }
+                    (*coefficient)(batch, q)[lane] = factor;
+                  }
+              }
+
+            for (unsigned int lane = 0; lane < n_filled_lanes; ++lane)
+              {
+                max_factor_found = std::max(max_factor_found, cell_max_factor[lane]);
+                if (cell_max_factor[lane] >= 2.)
+                  ++n_stiffened_cells;
+              }
+          }
+
+        return coefficient;
+      }
+    }
+
+
+
     template <int dim>
     void MeshDeformationHandler<dim>::compute_mesh_displacements()
     {
@@ -978,13 +1102,27 @@ namespace aspect
 
             cell_vector = 0;
             cell_matrix = 0;
+
+            // undeformed Jacobian determinant of this cell (see compute_mesh_stiffening())
+            const double undeformed_jacobian = cell->measure();
+
             for (unsigned int q=0; q<n_q_points; ++q)
               {
                 const double JxW = fe_values.JxW(q);
+                const double stiffening
+                  = (mesh_stiffening_exponent > 0.)
+                    ?
+                    mesh_stiffening_factor(undeformed_jacobian * quadrature.weight(q) / JxW,
+                                           mesh_stiffening_exponent,
+                                           max_mesh_stiffening_factor)
+                    :
+                    1.;
+
                 for (unsigned int i=0; i<dofs_per_cell; ++i)
                   {
                     for (unsigned int j=0; j<dofs_per_cell; ++j)
-                      cell_matrix(i,j) += scalar_product( fe_values[extract_vel].gradient(i,q),
+                      cell_matrix(i,j) += stiffening *
+                                          scalar_product( fe_values[extract_vel].gradient(i,q),
                                                           fe_values[extract_vel].gradient(j,q) ) *
                                           JxW;
                   }
@@ -1173,8 +1311,7 @@ namespace aspect
 
       using SystemOperatorType = dealii::MatrixFreeOperators::
                                  LaplaceOperator<dim, mesh_deformation_fe_degree, mesh_deformation_fe_degree + 1, dim>;
-
-      SystemOperatorType laplace_operator;
+      using VectorType = dealii::LinearAlgebra::distributed::Vector<double>;
 
       typename MatrixFree<dim, double>::AdditionalData additional_data;
       additional_data.tasks_parallel_scheme =
@@ -1188,58 +1325,123 @@ namespace aspect
                                 mesh_velocity_constraints,
                                 QGauss<1>(mesh_deformation_fe_degree + 1),
                                 additional_data);
-      laplace_operator.initialize(system_mf_storage);
 
-      // correct rhs:
-      // In a matrix-free method, since the LaplaceOperator class represents
-      // the matrix-vector product of a homogeneous operator (the left-hand
-      // side of the last formula). It does not matter whether the AffineConstraints
-      // object passed to the MatrixFree::reinit() contains inhomogeneous constraints or not,
-      // the MatrixFree::cell_loop() call will only resolve the homogeneous
-      // part of the constraints as long as it represents a linear operator.
+      const MPI_Comm mpi_communicator = this->get_mpi_communicator();
 
-      // What this function does is to move the inhomogeneous constraints to the
-      // right-hand side of the system by computing the residual of the system
-      // and subtracting it from the right-hand side: r = b - A*u0,
-      // where u0 is the initial guess and stored the degrees of freedom constrained by
-      // Inhomogeneous Dirichlet boundary conditions, and r is rhs.
-      // Then we have a new system Ax = r, and the solution is u = u0 + x.
-      // More details can be found in deal.II tutorial step-37 Section Possibilities for extensions.
-      dealii::LinearAlgebra::distributed::Vector<double> u0, rhs, solution;
-      laplace_operator.initialize_dof_vector(u0);
-      laplace_operator.initialize_dof_vector(rhs);
-      laplace_operator.initialize_dof_vector(solution);
-      u0 = 0.;
-      mesh_velocity_constraints.distribute(u0);
-      u0.update_ghost_values();
+      // Solve the vector Laplace problem for the mesh velocity, with the Laplace
+      // coefficient (mesh stiffening) @p coefficient on the active cells (none:
+      // one everywhere) and the coefficients returned by @p level_coefficient on
+      // the multigrid levels. Returns the mesh velocity with the constraints
+      // distributed and the ghost values updated.
+      const auto solve_mesh_velocity
+        = [&](const std::shared_ptr<MeshStiffeningCoefficient> &coefficient,
+              const LevelMeshStiffeningFunction &level_coefficient) -> VectorType
+      {
+        SystemOperatorType laplace_operator;
+        laplace_operator.initialize(system_mf_storage);
+        if (coefficient)
+          laplace_operator.set_coefficient(coefficient);
 
-      rhs = 0.;
+        // correct rhs:
+        // In a matrix-free method, since the LaplaceOperator class represents
+        // the matrix-vector product of a homogeneous operator (the left-hand
+        // side of the last formula). It does not matter whether the AffineConstraints
+        // object passed to the MatrixFree::reinit() contains inhomogeneous constraints or not,
+        // the MatrixFree::cell_loop() call will only resolve the homogeneous
+        // part of the constraints as long as it represents a linear operator.
 
-      FEEvaluation<dim, mesh_deformation_fe_degree, mesh_deformation_fe_degree + 1, dim, double> mesh_deformation(*laplace_operator.get_matrix_free());
-      for (unsigned int cell = 0;
-           cell < laplace_operator.get_matrix_free()->n_cell_batches();
-           ++cell)
-        {
-          mesh_deformation.reinit(cell);
-          mesh_deformation.read_dof_values_plain(u0);
-          mesh_deformation.evaluate(EvaluationFlags::gradients);
-          for (unsigned int q = 0; q < mesh_deformation.n_q_points; ++q)
-            {
-              mesh_deformation.submit_gradient(-1.0 * mesh_deformation.get_gradient(q), q);
-            }
-          mesh_deformation.integrate(EvaluationFlags::gradients);
-          mesh_deformation.distribute_local_to_global(rhs);
-        }
-      rhs.compress(VectorOperation::add);
+        // What this function does is to move the inhomogeneous constraints to the
+        // right-hand side of the system by computing the residual of the system
+        // and subtracting it from the right-hand side: r = b - A*u0,
+        // where u0 is the initial guess and stored the degrees of freedom constrained by
+        // Inhomogeneous Dirichlet boundary conditions, and r is rhs.
+        // Then we have a new system Ax = r, and the solution is u = u0 + x.
+        // More details can be found in deal.II tutorial step-37 Section Possibilities for extensions.
+        VectorType u0, rhs, solution;
+        laplace_operator.initialize_dof_vector(u0);
+        laplace_operator.initialize_dof_vector(rhs);
+        laplace_operator.initialize_dof_vector(solution);
+        u0 = 0.;
+        mesh_velocity_constraints.distribute(u0);
+        u0.update_ghost_values();
 
-      mesh_velocity_constraints.set_zero(solution);
+        rhs = 0.;
 
-      solve_mesh_deformation_local_smoothing<mesh_deformation_fe_degree>(laplace_operator,
-                                                                         rhs,
-                                                                         solution);
+        FEEvaluation<dim, mesh_deformation_fe_degree, mesh_deformation_fe_degree + 1, dim, double> mesh_deformation(*laplace_operator.get_matrix_free());
+        for (unsigned int cell = 0;
+             cell < laplace_operator.get_matrix_free()->n_cell_batches();
+             ++cell)
+          {
+            mesh_deformation.reinit(cell);
+            mesh_deformation.read_dof_values_plain(u0);
+            mesh_deformation.evaluate(EvaluationFlags::gradients);
+            for (unsigned int q = 0; q < mesh_deformation.n_q_points; ++q)
+              {
+                // r = -A*u0 must use the same coefficient as laplace_operator
+                if (coefficient)
+                  mesh_deformation.submit_gradient(-1.0 * ((*coefficient)(cell, q) * mesh_deformation.get_gradient(q)), q);
+                else
+                  mesh_deformation.submit_gradient(-1.0 * mesh_deformation.get_gradient(q), q);
+              }
+            mesh_deformation.integrate(EvaluationFlags::gradients);
+            mesh_deformation.distribute_local_to_global(rhs);
+          }
+        rhs.compress(VectorOperation::add);
 
-      mesh_velocity_constraints.distribute(solution);
-      solution.update_ghost_values();
+        mesh_velocity_constraints.set_zero(solution);
+
+        this->template solve_mesh_deformation_local_smoothing<mesh_deformation_fe_degree>(laplace_operator,
+                                                                                          rhs,
+                                                                                          solution,
+                                                                                          level_coefficient);
+
+        mesh_velocity_constraints.distribute(solution);
+        solution.update_ghost_values();
+        return solution;
+      };
+
+      // Two-way stiffening of the multigrid level operators: the stiffening of
+      // the level cells, from the level mapping, so that the multigrid hierarchy
+      // represents the stiffened fine-level operator.
+      const LevelMeshStiffeningFunction two_way_level_coefficient
+        = [&](const MatrixFree<dim, double> &level_matrix_free)
+      {
+        double max_factor_found = 1.;
+        unsigned int n_stiffened_cells = 0;
+        return compute_mesh_stiffening<dim, mesh_deformation_fe_degree>(level_matrix_free,
+                                                                        mesh_stiffening_exponent,
+                                                                        max_mesh_stiffening_factor,
+                                                                        max_factor_found,
+                                                                        n_stiffened_cells);
+      };
+
+      // Solve with the two-way (Jacobian-based) stiffening of the mesh velocity
+      // Laplace problem on the active cells and the multigrid levels.
+      const auto solve_with_two_way_stiffening = [&]() -> VectorType
+      {
+        double max_factor_found = 1.;
+        unsigned int n_stiffened_cells = 0;
+        const std::shared_ptr<MeshStiffeningCoefficient> stiffening
+          = compute_mesh_stiffening<dim, mesh_deformation_fe_degree>(*system_mf_storage,
+                                                                     mesh_stiffening_exponent,
+                                                                     max_mesh_stiffening_factor,
+                                                                     max_factor_found,
+                                                                     n_stiffened_cells);
+
+        this->get_pcout() << "   Mesh stiffening: maximum factor "
+                          << Utilities::MPI::max(max_factor_found, mpi_communicator)
+                          << ", "
+                          << Utilities::MPI::sum(n_stiffened_cells, mpi_communicator)
+                          << " cells with a factor of 2 or more" << std::endl;
+
+        return solve_mesh_velocity(stiffening, two_way_level_coefficient);
+      };
+
+      VectorType solution;
+      if (mesh_stiffening_exponent > 0.)
+        solution = solve_with_two_way_stiffening();
+      else
+        solution = solve_mesh_velocity(nullptr, LevelMeshStiffeningFunction());
 
       // copy solution:
       LinearAlgebra::Vector solution_tmp;
@@ -1277,7 +1479,8 @@ namespace aspect
     MeshDeformationHandler<dim>::solve_mesh_deformation_local_smoothing(
       const SystemOperatorType &laplace_operator,
       const dealii::LinearAlgebra::distributed::Vector<double> &rhs,
-      dealii::LinearAlgebra::distributed::Vector<double> &solution)
+      dealii::LinearAlgebra::distributed::Vector<double> &solution,
+      const LevelMeshStiffeningFunction &level_coefficient)
     {
       MGConstrainedDoFs mg_constrained_dofs;
       mg_constrained_dofs.initialize(mesh_deformation_dof_handler);
@@ -1381,6 +1584,12 @@ namespace aspect
           mg_matrices[level].initialize(mg_mf_storage_level,
                                         mg_constrained_dofs,
                                         level);
+
+          // The level operators get the Laplace coefficient (mesh stiffening)
+          // of the level cells, so that the multigrid hierarchy represents the
+          // coefficient of the fine-level operator. Set before compute_diagonal() below.
+          if (level_coefficient)
+            mg_matrices[level].set_coefficient(level_coefficient(*mg_mf_storage_level));
         }
 
       MGTransferType<dim, double> local_smoothing_mg_transfer(mg_constrained_dofs);

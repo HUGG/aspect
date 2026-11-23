@@ -31,10 +31,15 @@
 #include <deal.II/lac/affine_constraints.h>
 #include <deal.II/base/index_set.h>
 #include <deal.II/base/mg_level_object.h>
+#include <deal.II/base/table.h>
+#include <deal.II/base/vectorization.h>
 #include <deal.II/lac/la_parallel_vector.h>
+#include <deal.II/matrix_free/matrix_free.h>
 #include <deal.II/multigrid/mg_transfer_matrix_free.h>
 #include <deal.II/multigrid/mg_transfer_global_coarsening.templates.h>
 #include <aspect/simulator/assemblers/interface.h>
+
+#include <functional>
 
 namespace aspect
 {
@@ -498,15 +503,35 @@ namespace aspect
         void check_mesh_deformation ();
 
         /**
+         * Laplace coefficient of the mesh velocity problem (the mesh
+         * stiffening) at every quadrature point of every cell batch of a
+         * MatrixFree object, as used by
+         * MatrixFreeOperators::LaplaceOperator::set_coefficient().
+         */
+        using MeshStiffeningCoefficient = Table<2, VectorizedArray<double>>;
+
+        /**
+         * A function that returns the Laplace coefficient for the cells of a
+         * multigrid level, whose MatrixFree object is its argument. An empty
+         * function means a coefficient of one.
+         */
+        using LevelMeshStiffeningFunction
+          = std::function<std::shared_ptr<MeshStiffeningCoefficient> (const MatrixFree<dim, double> &)>;
+
+        /**
          * Solve the matrix-free mesh deformation system using a geometric
-         * multigrid preconditioner with local smoothing.
+         * multigrid preconditioner with local smoothing. The level operators
+         * get the Laplace coefficient returned by @p level_coefficient (none
+         * if it is empty), which should match the coefficient of
+         * @p laplace_operator on the fine level.
          */
         template <unsigned int mesh_deformation_fe_degree,
                   typename SystemOperatorType>
         void solve_mesh_deformation_local_smoothing(
           const SystemOperatorType &laplace_operator,
           const dealii::LinearAlgebra::distributed::Vector<double> &rhs,
-          dealii::LinearAlgebra::distributed::Vector<double> &solution);
+          dealii::LinearAlgebra::distributed::Vector<double> &solution,
+          const LevelMeshStiffeningFunction &level_coefficient);
 
         /**
          * Set up the multigrid hierarchy used by the local-smoothing mesh
@@ -713,6 +738,24 @@ namespace aspect
          * can create.
          */
         unsigned int initial_deformation_substeps;
+
+        /**
+         * Exponent chi of the Jacobian-based stiffening of the vector Laplace
+         * problem that computes the mesh velocity in the interior of the domain
+         * (Stein, Tezduyar and Benney, 2003). At every quadrature point the
+         * Laplace coefficient is min(max_mesh_stiffening_factor, max(1, J_0/J)^chi),
+         * where J is the Jacobian determinant of the deformed mapping and J_0 that
+         * of the undeformed cell. Zero gives the unweighted Laplace problem.
+         *
+         * Read from the parameter 'Mesh stiffening exponent'.
+         */
+        double mesh_stiffening_exponent;
+
+        /**
+         * Upper limit of the stiffening factor, read from the parameter
+         * 'Maximum mesh stiffening factor'.
+         */
+        double max_mesh_stiffening_factor;
 
         /**
          * If required, store a mapping for each multigrid level.
